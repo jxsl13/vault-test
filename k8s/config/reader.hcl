@@ -1,7 +1,7 @@
 
 
 # Read permission on the k/v secrets
-path "/secret/webapp/*" {
+path "/secret/*" {
     capabilities = ["list"]
 }
 
