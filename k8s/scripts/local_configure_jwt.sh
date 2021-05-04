@@ -15,10 +15,11 @@ vault write auth/jwt/config \
     jwks_url="$JWKS_URL"
 
 
+# "aud" claim in JWT
 vault write auth/jwt/role/reader \
     user_claim="sub" \
     role_type="jwt" \
-    bound_audiences="account" \         # "aud" claim in JWT
+    bound_audiences="account" \
     ttl=1h \
     policies="reader" \
     verbose_jwt_logging=true
