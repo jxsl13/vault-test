@@ -20,3 +20,10 @@ cd k8s
 make
 
 ```
+
+## Structure
+
+```
+Makefile -> make.sh -> scripts/*.sh                    -> scripts/env.sh -> secrets/vault.env
+                    -> scripts/local_apply_policies.sh -> config/*.hcl
+```
