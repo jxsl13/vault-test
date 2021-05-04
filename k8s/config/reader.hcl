@@ -2,6 +2,10 @@
 
 # Read permission on the k/v secrets
 path "/secret/webapp/*" {
+    capabilities = ["list"]
+}
+
+path "/secret/webapp/*" {
     capabilities = ["read", "list"]
 }
 
