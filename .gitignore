@@ -1,0 +1,8 @@
+keys/*
+
+!keys/.git-keep
+k8s/cluster-keys.json
+k8s/secrets/*.env
+k8s/**.json
+k8s/secrets/cluster-keys.json
+k8s/secrets/vault.env
