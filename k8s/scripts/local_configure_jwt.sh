@@ -19,10 +19,20 @@ vault write auth/jwt/config \
 vault write auth/jwt/role/reader \
     user_claim="sub" \
     role_type="jwt" \
-    bound_audiences="account" \
+    bound_audiences="$CLIENT_ID" \
+    groups_claim="/resource_access/$CLIENT_ID/roles" \
     ttl=1h \
     policies="reader" \
     verbose_jwt_logging=true
 
+
+vault write auth/jwt/role/manager \
+    user_claim="sub" \
+    role_type="jwt" \
+    bound_audiences="$CLIENT_ID" \
+    groups_claim="/resource_access/$CLIENT_ID/roles" \
+    ttl=1h \
+    policies="manager" \
+    verbose_jwt_logging=true
 
 vault read auth/jwt/role/reader

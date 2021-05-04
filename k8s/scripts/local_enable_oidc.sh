@@ -4,5 +4,5 @@
 # source environment variables
 source scripts/env.sh
 
-# enable jwt
-vault auth enable jwt | true
+# enable oidc
+vault auth enable oidc | true
