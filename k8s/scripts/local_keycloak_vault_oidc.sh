@@ -10,7 +10,7 @@ source scripts/env.sh
 #vault login -method=oidc role="manager" -format=json | jq -r '.auth.client_token' > ~/.vault-token
 
 
-firefox localhost:8200
+firefox http://localhost:8200/ui/vault/auth?with=oidc &
  
 
 

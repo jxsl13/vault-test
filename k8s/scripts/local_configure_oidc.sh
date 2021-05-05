@@ -1,6 +1,5 @@
 #!/bin/bash
 
-set -ue
 # source environment variables
 source scripts/env.sh
 
@@ -21,9 +20,10 @@ vault write auth/oidc/role/reader \
     user_claim="sub" \
     role_type="oidc" \
     bound_audiences="$CLIENT_ID" \
-    groups_claim="/resource_access/$CLIENT_ID/roles" \
     ttl=1h \
-    allowed_redirect_uris="http://localhost:8200/ui/vault/auth/oidc/oidc/callback,http://localhost:8250/oidc/callback" \
+    oidc_scopes="profile,roles" \
+    groups_claim="/resource_access/$CLIENT_ID/roles" \
+    allowed_redirect_uris="http://127.0.0.1:8200/ui/vault/auth/oidc/oidc/callback,http://localhost:8200/ui/vault/auth/oidc/oidc/callback" \
     policies="reader" \
     verbose_oidc_logging=true
 
@@ -32,9 +32,10 @@ vault write auth/oidc/role/manager \
     user_claim="sub" \
     role_type="oidc" \
     bound_audiences="$CLIENT_ID" \
-    groups_claim="/resource_access/$CLIENT_ID/roles" \
     ttl=1h \
-    allowed_redirect_uris="http://localhost:8200/ui/vault/auth/oidc/oidc/callback,http://localhost:8250/oidc/callback" \
+    oidc_scopes="profile,roles" \
+    groups_claim="/resource_access/$CLIENT_ID/roles" \
+    allowed_redirect_uris="http://127.0.0.1:8200/ui/vault/auth/oidc/oidc/callback,http://localhost:8200/ui/vault/auth/oidc/oidc/callback" \
     policies="manager" \
     verbose_oidc_logging=true
 

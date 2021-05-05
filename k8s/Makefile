@@ -10,3 +10,7 @@ delete:
 	helm uninstall consul --namespace vault
 	helm uninstall vault --namespace vault
 	kubectl delete namespace vault
+
+
+tokens:
+	./scripts/./keycloak_fetch_tokens.sh

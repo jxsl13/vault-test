@@ -2,46 +2,49 @@
 
 
 echo "# Installing vault..."
-#source scripts/remote_install_vault.sh
+source scripts/remote_install_vault.sh
 
 echo "# Initializing vault..."
-#source scripts/remote_init.sh
+source scripts/remote_init.sh
 
 echo "# Fetching environment varibales"
-#source scripts/env.sh
+source scripts/env.sh
 
 echo "# Unsealing vaults..."
-#source scripts/remote_unseal.sh
+source scripts/remote_unseal.sh
 
 echo "# Port forwarding in new terminal.."
-#source scripts/portforward.sh
+source scripts/portforward.sh
 
 echo "# Logging in locally..."
 source scripts/local_login.sh
 
 echo "# Applying policies"
-#source scripts/local_apply_policies.sh
+source scripts/local_apply_policies.sh
 
 echo "# Enabling JWT"
-#source scripts/local_enable_jwt.sh
+source scripts/local_enable_jwt.sh
 
 echo "# Configure JWT"
-#source scripts/local_configure_jwt.sh
+source scripts/local_configure_jwt.sh
 
 echo "# Enable OIDC"
 source scripts/local_enable_oidc.sh
 
 echo "# Configure OIDC"
-#source scripts/local_configure_oidc.sh
+source scripts/local_configure_oidc.sh
 
 echo "# Enable secrets"
-#source scripts/local_enable_secrets.sh
+source scripts/local_enable_secrets.sh
 
 echo "# Create secret"
-#source scripts/local_create_secret.sh
+source scripts/local_create_secret.sh
+
+echo "# Create identity/group"
+source scripts/local_create_groups.sh
 
 echo "# Login via Keycloak"
-#source scripts/local_keycloak_vault_jwt.sh
+source scripts/local_keycloak_vault_jwt.sh
 
 echo "# Login via Keycloak OIDC Flow"
 source scripts/local_keycloak_vault_oidc.sh
