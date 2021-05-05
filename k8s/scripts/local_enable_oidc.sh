@@ -5,4 +5,4 @@
 source scripts/env.sh
 
 # enable oidc
-vault auth enable oidc | true
+vault auth enable oidc || true

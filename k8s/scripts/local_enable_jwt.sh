@@ -5,4 +5,4 @@
 source scripts/env.sh
 
 # enable jwt
-vault auth enable jwt | true
+vault auth enable jwt || true

@@ -23,7 +23,7 @@ echo "# Manager logs in as role reader"
 vault write auth/jwt/login role="reader" -format=json jwt=$MANAGER_ACCESS_TOKEN | jq -r '.auth.client_token' > ~/.vault-token
 
 # try to do stuff as reader write stuff
-vault kv put secret/webapp/config manager="reader"
+vault kv put secret/webapp/config manager="reader" || true
 
 echo "# Manager logs in as role manager"
 vault write auth/jwt/login role="manager" -format=json jwt=$MANAGER_ACCESS_TOKEN | jq -r '.auth.client_token' > ~/.vault-token
@@ -55,7 +55,7 @@ echo "# Reader logs in as role reader"
 vault write auth/jwt/login role="reader" -format=json jwt=$READER_ACCESS_TOKEN | jq -r '.auth.client_token' > ~/.vault-token
 
 # this should fail, try to write stuff
-vault kv put secret/webapp/config reader="reader"
+vault kv put secret/webapp/config reader="reader" || true
 
 
 echo "# Reader logs in as role manager"
