@@ -7,6 +7,11 @@ Contrary to the OIDC workflow that requires the user to interact with a web brow
 
 This setup is a boilerplate for such a potential workflow. 
 
+## Keycloak Setup
+
+[ ] [Enable client role mapping into id_token](https://issues.redhat.com/browse/KEYCLOAK-3027) [Alternative tutorial](https://number1.co.za/using-keycloak-as-the-identifyprovider-to-login-to-hashicorp-vault/)
+
+
 ## Requirements
 - *jq* CLI tool
 - *curl* CLI tool
