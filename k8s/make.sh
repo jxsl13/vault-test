@@ -48,3 +48,6 @@ source scripts/local_keycloak_vault_jwt.sh
 
 echo "# Login via Keycloak OIDC Flow"
 source scripts/local_keycloak_vault_oidc.sh
+
+
+echo "VAULT_TOKEN: $VAULT_TOKEN"
