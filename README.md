@@ -18,10 +18,11 @@ This setup is a boilerplate for such a potential workflow.
 - create a client and allow it to redirect to your vault url. In case yo are using a local setup, provide both urls
     - http://127.0.0.1:8200/ui/vault/auth/oidc/oidc/callback
     - http://localhost:8200/ui/vault/auth/oidc/oidc/callback
-- in case you have a local keycloak setup, you  might want to use `ngrok http 8091` to expose your locla keycloak with a randomly generated subdomain of [ngrok.io](https://ngrok.io)
+- in case you have a local keycloak setup, you  might want to use `ngrok http 8091` to expose your local keycloak with a randomly generated subdomain of [ngrok.io](https://ngrok.io)
 - create two users, a *vault_manager* and a *vault_reader*, 
 - create client roles *reader* and *manager*
 - enable [client role mapping into id_token](https://number1.co.za/using-keycloak-as-the-identifyprovider-to-login-to-hashicorp-vault/) so that the id token contains the *resource_access* claim containing the corresponsing client id as well as the user role.
+- set ssl requirements to *none* in your realm settings 
 
 ### Local environment
 - *kubectl*/kubernetes/Minikube running
