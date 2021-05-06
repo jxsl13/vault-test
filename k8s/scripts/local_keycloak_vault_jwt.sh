@@ -20,7 +20,7 @@ echo "Requested MANAGER token: $MANAGER_ACCESS_TOKEN"
 
 
 echo "# Manager logs in as role reader"
-vault write auth/jwt/login role="reader" -format=json jwt=$MANAGER_ACCESS_TOKEN | jq -r '.auth.client_token' > ~/.vault-token
+vault write auth/jwt/login role="reader" -format=json jwt=$MANAGER_ACCESS_TOKEN | jq -r '.auth.client_token' > ~/.vault-token || true
 
 # try to do stuff as reader write stuff
 vault kv put secret/webapp/config manager="reader" || true
@@ -59,7 +59,7 @@ vault kv put secret/webapp/config reader="reader" || true
 
 
 echo "# Reader logs in as role manager"
-vault write auth/jwt/login role="manager" -format=json jwt=$READER_ACCESS_TOKEN | jq -r '.auth.client_token' > ~/.vault-token
+vault write auth/jwt/login role="manager" -format=json jwt=$READER_ACCESS_TOKEN | jq -r '.auth.client_token' > ~/.vault-token || true
 
 # this should fail, try to write stuff, but do not really have permission to, because user should be a reader user
-vault kv put secret/webapp/config reader="manager"
+vault kv put secret/webapp/config reader="manager" || true

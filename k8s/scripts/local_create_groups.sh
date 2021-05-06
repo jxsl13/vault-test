@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# source environment variables
+# source environment variables & login as root user
 source scripts/env.sh
+source scripts/local_login.sh
 
 # create external group and get its ID
 MANAGER_GROUP_ID=`vault write identity/group name="keycloak_manager" type="external" policies="manager" metadata=responsibility="Manage K/V Secrets" -format=json | jq -r '.data.id'`

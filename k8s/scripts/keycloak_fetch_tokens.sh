@@ -1,6 +1,7 @@
 #!/bin/bash
 
 
+# source environment variables
 source scripts/env.sh
 
 
