@@ -1,0 +1,19 @@
+
+
+
+
+keycloak:
+    url: "keycloak.local"
+    realm: "Bank"
+    client_id: ""
+    client_secret: ""
+
+manager:
+  username: vault_manager
+  password: vault_manager
+
+reader:
+  username: vault_reader
+  password: vault_reader
+
+
