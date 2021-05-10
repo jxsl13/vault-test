@@ -1,110 +1,141 @@
 - name: Deploy Vault in Kubernetes
   hosts: localhost
+  gather_facts: false
   tasks:
- #   - name: helm diff plugin
- #     kubernetes.core.helm_plugin:
- #       plugin_path: https://github.com/databus23/helm-diff
- #       state: present
+  - name: helm diff plugin
+    kubernetes.core.helm_plugin:
+      plugin_path: https://github.com/databus23/helm-diff
+      state: present
 
- #   - name: add helm chart repos
- #     kubernetes.core.helm_repository:
- #       name: hashicorp
- #       repo_url: https://helm.releases.hashicorp.com
+  - name: add helm chart repos
+    kubernetes.core.helm_repository:
+      name: hashicorp
+      repo_url: https://helm.releases.hashicorp.com
+      state: present
 
+  - name: deploy vault
+    kubernetes.core.helm:
+      state: present
+      release_name: vault
+      release_namespace: vault
+      create_namespace: true
+      chart_ref: hashicorp/vault
+      # values used by the vault helm chart
+      release_values:
+        server:
+          affinity: ""
+          ha:
+            enabled: true
 
-#    - name: deploy vault
-#      kubernetes.core.helm:
-#        release_name: vault
-#        release_namespace: vault
-#        create_namespace: true
-#        chart_ref: hashicorp/vault
-#        release_values:
-          # values used by the vault helm chart
-          # server:
-          #   affinity: ""
-          #   ha:
-          #     enabled: true
+  - name: deploy consul
+    kubernetes.core.helm:
+      state: present
+      release_name: vault-db
+      release_namespace: vault
+      create_namespace: true
+      chart_ref: hashicorp/consul
+      release_values:
+        # Values used by helm chart
+        client:
+          enabled: true
+        server:
+          logLevel: "debug"
+          replicas: 1
+          bootstrapExpect: 1
+          disruptionBudget:
+            maxUnavailable: 0
+      wait: yes
 
-    # - name: deploy consul
-    #   kubernetes.core.helm:
-    #     release_name: vault-db
-    #     release_namespace: vault
-    #     create_namespace: true
-    #     chart_ref: hashicorp/consul
-    #     release_values:
-    #       # Values used by helm chart
-    #       client:
-    #         enabled: true
-    #       server:
-    #         logLevel: "debug"
-    #         replicas: 1
-    #         bootstrapExpect: 1
-    #         disruptionBudget:
-    #           maxUnavailable: 0
-    #     wait: yes
+  - name: check vault status
+    kubernetes.core.k8s_exec:
+      namespace: vault
+      pod: vault-0
+      command: vault status -tls-skip-verify -format=json
+    register: vault_status
 
-# at this point we expect vault to be running as well as consul to be running,
-# as consul needs more time to startup
+  - name: set cluster status variables
+    set_fact:
+      cluster: "{{ vault_status.stdout | from_json }}"
 
-    # - name: init vault
-    #   kubernetes.core.k8s_exec:
-    #     namespace: vault
-    #     pod: vault-0
-    #     command: vault operator init -key-shares=1 -key-threshold=1 -format=json
-    #   register: cluster_keys_result
+  - name: debug msg
+    debug:
+      msg: "{{ cluster }}"
+  - name: Show facts available on the system
+    ansible.builtin.debug:
+      var: ansible_facts
 
-    # - name: set cluster keys
-    #   set_fact:
-    #     cluster_keys: "{{ cluster_keys_result.stdout | from_json }}"
+#at this point we expect vault to be running as well as consul to be running,
+#as consul needs more time to startup
 
-    # - name: unseal vault-0
-    #   kubernetes.core.k8s_exec:
-    #     namespace: vault
-    #     pod: vault-0
-    #     command: "vault operator unseal {{ cluster_keys.unseal_keys_b64 | join(' ') }}"
+  - name: init vault
+    kubernetes.core.k8s_exec:
+      namespace: vault
+      pod: vault-0
+      command: vault operator init -key-shares=1 -key-threshold=1 -format=json
+    register: cluster_keys_result
+    when: not (cluster.initialized)
 
-    # - name: unseal vault-1
-    #   kubernetes.core.k8s_exec:
-    #     namespace: vault
-    #     pod: vault-1
-    #     command: "vault operator unseal {{ cluster_keys.unseal_keys_b64 | join(' ') }}"
+  - name: set cluster keys
+    set_fact:
+      cluster_keys: "{{ cluster_keys_result.stdout | from_json }}"
+    when: not (cluster.initialized)
 
-    # - name: unseal vault-2
-    #   kubernetes.core.k8s_exec:
-    #     namespace: vault
-    #     pod: vault-2
-    #     command: "vault operator unseal {{ cluster_keys.unseal_keys_b64 | join(' ') }}"
+  - name: write var to file
+    copy:
+      content: "{{ cluster_keys | to_nice_json }}"
+      dest: /home/behm015/Development/vault-test/ansible/cluster-keys.json
+    when: not (cluster.initialized)
 
-       # - name: write var to file
-    #   copy:
-    #     content: "{{ cluster_keys | to_nice_json }}"
-    #     dest: /home/behm015/Development/vault-test/ansible/cluster-keys.json
-    - name: wait for vault to be READY
-      kubernetes.core.k8s_info:
-        api_version: apps/v1
-        kind: StatefulSet
-        namespace: vault
-        name: vault
-        wait: yes
+# this file should exist in case the vault is already initialized
+  - name: load var from file
+    slurp:
+      src: /home/behm015/Development/vault-test/ansible/cluster-keys.json
+    register: cluster_keys_result
 
+  - name: get environment variables
+    set_fact:
+      unseal_keys_b64: "{{ ( cluster_keys_result.content | b64decode | from_json ).unseal_keys_b64 }}"
+      root_token: "{{ ( cluster_keys_result.content | b64decode | from_json ).root_token }}"
+      keycloak: "{{ lookup('vars','keycloak') }}"
+      manager: "{{ lookup('vars','manager') }}"
+      reader: "{{ lookup('vars','reader') }}"
 
-    - name: load var from file
-      slurp:
-        src: /home/behm015/Development/vault-test/ansible/cluster-keys.json
-      register: cluster_keys_result
+# unseal vault in case it is sealed, we expect if vault-0 is sealed that every other vault instance is also sealed.
+  - name: unseal vault-0
+    kubernetes.core.k8s_exec:
+      namespace: vault
+      pod: vault-0
+      command: "vault operator unseal {{ unseal_keys_b64 | join(' ') }}"
+    when: cluster.sealed
 
-    - name: get environment variables
-      set_fact:
-        root_token: "{{ ( cluster_keys_result.content | b64decode | from_json ).root_token }}"
-        keycloak: "{{ lookup('vars','keycloak') }}"
-        manager: "{{ lookup('vars','manager') }}"
-        reader: "{{ lookup('vars','reader') }}"
+  - name: unseal vault-1
+    kubernetes.core.k8s_exec:
+      namespace: vault
+      pod: vault-1
+      command: "vault operator unseal {{ unseal_keys_b64 | join(' ') }}"
+    when: cluster.sealed
 
-    - name: login
-      kubernetes.core.k8s_exec:
-        namespace: vault
-        pod: vault-1
-        command: "vault login {{ root_token }}"
+  - name: unseal vault-2
+    kubernetes.core.k8s_exec:
+      namespace: vault
+      pod: vault-2
+      command: "vault operator unseal {{ unseal_keys_b64 | join(' ') }}"
+    when: cluster.sealed
+
+# unsealed vault should also be ready, in any case.
+  - name: wait for vault to be READY
+    kubernetes.core.k8s_info:
+      api_version: apps/v1
+      kind: StatefulSet
+      namespace: vault
+      name: vault
+      wait: yes
+
+  - name: login
+    kubernetes.core.k8s_exec:
+      namespace: vault
+      pod: vault-1
+      command: "vault login {{ root_token }}"
 
 
 
