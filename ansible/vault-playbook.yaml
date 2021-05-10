@@ -1,7 +1,16 @@
 - name: Deploy Vault in Kubernetes
   hosts: localhost
-  gather_facts: false
+
+  gather_facts: true
+
+  environment:
+    KUBECONFIG: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
+
   tasks:
+  - name: switch context to vault namespace
+    shell:
+      cmd: kubectl config set-context $(kubectl config current-context) --namespace vault
+
   - name: helm diff plugin
     kubernetes.core.helm_plugin:
       plugin_path: https://github.com/databus23/helm-diff
@@ -57,13 +66,6 @@
     set_fact:
       cluster: "{{ vault_status.stdout | from_json }}"
 
-  - name: debug msg
-    debug:
-      msg: "{{ cluster }}"
-  - name: Show facts available on the system
-    ansible.builtin.debug:
-      var: ansible_facts
-
 #at this point we expect vault to be running as well as consul to be running,
 #as consul needs more time to startup
 
@@ -83,13 +85,13 @@
   - name: write var to file
     copy:
       content: "{{ cluster_keys | to_nice_json }}"
-      dest: /home/behm015/Development/vault-test/ansible/cluster-keys.json
+      dest: "{{ lookup('vars','cluster_keys.json').destination.replace('~', ansible_env.HOME) }}"
     when: not (cluster.initialized)
 
 # this file should exist in case the vault is already initialized
   - name: load var from file
     slurp:
-      src: /home/behm015/Development/vault-test/ansible/cluster-keys.json
+      src: "{{ lookup('vars','cluster_keys.json').destination.replace('~', ansible_env.HOME) }}"
     register: cluster_keys_result
 
   - name: get environment variables
@@ -132,10 +134,84 @@
       wait: yes
 
   - name: login
+    command:
+      cmd: kubectl exec -i vault-0 -- vault login -no-print -
+      stdin:  "{{ root_token }}"
+
+
+  - name: apply reader policy
+    command:
+      cmd: kubectl exec -i vault-0 -- vault policy write reader -
+      stdin:  "{{ lookup('vars', 'policy').reader }}"
+
+
+  - name: apply manager policy
+    command:
+      cmd: kubectl exec -i vault-0 -- vault policy write manager -
+      stdin:  "{{ lookup('vars', 'policy').manager }}"
+
+  - name: configure Keycloak JWT
     kubernetes.core.k8s_exec:
       namespace: vault
-      pod: vault-1
-      command: "vault login {{ root_token }}"
+      pod: vault-0
+      command: |
+        vault write auth/jwt/config \
+        default_role="reader" \
+        bound_issuer="{{ keycloak.url.rstrip('/') }}/auth/realms/{{ keycloak.realm }}" \
+        jwks_url="{{ keycloak.url.rstrip('/') }}/auth/realms/{{ keycloak.realm }}/protocol/openid-connect/certs"
+
+  - name: construct role payloads
+    set_fact:
+      manager_payload: |-
+         {
+            "user_claim": "sub",
+            "role_type": "jwt",
+            "bound_audiences": "{{ keycloak.client_id | quote }}",
+            "policies": "manager",
+            "ttl": "1h",
+            "groups_claim": "/resource_access/{{ keycloak.client_id }}/roles",
+            "bound_claims": {
+                "/resource_access/{{ keycloak.client_id }}/roles" : ["manager"]
+              },
+          }
+      reader_payload: |-
+         {
+            "user_claim": "sub",
+            "role_type": "jwt",
+            "bound_audiences": "{{ keycloak.client_id | quote }}",
+            "policies": "reader",
+            "ttl": "1h",
+            "groups_claim": "/resource_access/{{ keycloak.client_id }}/roles",
+            "bound_claims": {
+                "/resource_access/{{ keycloak.client_id }}/roles" : ["reader"]
+              },
+          }
+
+  - name: create manager role
+    command:
+      cmd: kubectl exec -i vault-0 -- vault write auth/jwt/role/manager -
+      stdin: "{{ manager_payload | to_json | quote }}"
+
+  # - name: create reader role
+  #   command:
+  #     cmd: kubectl exec -i vault-0 -- vault write auth/jwt/role/reader -
+  #     stdin:  |
+  #       {
+  #         "user_claim": "sub",
+  #         "role_type": "jwt",
+  #         "bound_audiences": "{{ keycloak.client_id }}",
+  #         "policies": "reader",
+  #         "ttl": "1h",
+  #         "groups_claim": "/resource_access/{{ keycloak.client_id }}/roles",
+  #         "bound_claims": { "/resource_access/{{ keycloak.client_id }}/roles": ["reader"] },
+  #       }
+
+
+
+
+
+
+
 
 
 

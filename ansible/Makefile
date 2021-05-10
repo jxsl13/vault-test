@@ -2,7 +2,7 @@
 
 
 deploy:
-	ansible-playbook -i hosts vault-playbook.yaml
+	ansible-playbook -i hosts.txt vault-playbook.yaml
 
 requirements:
 	# install pip
