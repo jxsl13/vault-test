@@ -1,0 +1,9 @@
+client:
+  enabled: true
+
+server:
+  logLevel: "debug"
+  replicas: 1
+  bootstrapExpect: 1
+  disruptionBudget:
+    maxUnavailable: 0

@@ -1,48 +1,12 @@
 
 
+# location of the kubeconfig file for the target cluster on the localhost machine
 kubeconfig: ~/.kube/config
 
+# where the vault root credentials should be saved
 cluster_keys.json:
   destination: "~/Development/vault-test/ansible/cluster-keys.json"
 
-keycloak:
-    url: "http://keycloak.local"
-    realm: "Bank"
-    client_id: "vault"
-    client_secret: "2b..."
 
-manager:
-  username: vault_manager
-  password: vault_manager
-
-reader:
-  username: vault_reader
-  password: vault_reader
-
-policy:
-  manager: |
-    path "/secret/*" {
-        capabilities = ["create", "read", "update", "delete", "list"]
-    }
-
-    path "/identity/*" {
-        capabilities = ["list"]
-    }
-
-    path "/sys/policies/*" {
-        capabilities = ["list", "read", "update", "create"]
-    }
-  reader: |
-    path "/secret/*" {
-        capabilities = ["list", "read" ]
-    }
-
-    path "/identity/*" {
-        capabilities = ["list"]
-    }
-
-    path "/sys/policies/*" {
-        capabilities = ["list"]
-    }
-
-
+vault:
+  address: "127.0.0.1:8200"

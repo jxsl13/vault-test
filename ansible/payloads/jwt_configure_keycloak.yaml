@@ -1,0 +1,4 @@
+---
+default_role: reader
+bound_issuer: "{{ keycloak.url.rstrip('/') }}/auth/realms/{{ keycloak.realm }}"
+jwks_url: "{{ keycloak.url.rstrip('/') }}/auth/realms/{{ keycloak.realm }}/protocol/openid-connect/certs"
