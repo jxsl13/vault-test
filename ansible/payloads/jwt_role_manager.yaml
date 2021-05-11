@@ -1,0 +1,10 @@
+---
+user_claim: sub
+role_type: jwt
+bound_audiences: "{{ keycloak.client_id }}"
+policies: manager
+ttl: 1h
+groups_claim: "/resource_access/{{ keycloak.client_id }}/roles"
+bound_claims:
+  "/resource_access/{{ keycloak.client_id }}/roles":
+  - manager

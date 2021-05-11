@@ -154,43 +154,25 @@
     kubernetes.core.k8s_exec:
       namespace: vault
       pod: vault-0
-      command: |
-        vault write auth/jwt/config \
-        default_role="reader" \
-        bound_issuer="{{ keycloak.url.rstrip('/') }}/auth/realms/{{ keycloak.realm }}" \
+      command: >
+        vault write auth/jwt/config
+        default_role="reader"
+        bound_issuer="{{ keycloak.url.rstrip('/') }}/auth/realms/{{ keycloak.realm }}"
         jwks_url="{{ keycloak.url.rstrip('/') }}/auth/realms/{{ keycloak.realm }}/protocol/openid-connect/certs"
 
-  - name: construct role payloads
-    set_fact:
-      manager_payload: |-
-         {
-            "user_claim": "sub",
-            "role_type": "jwt",
-            "bound_audiences": "{{ keycloak.client_id | quote }}",
-            "policies": "manager",
-            "ttl": "1h",
-            "groups_claim": "/resource_access/{{ keycloak.client_id }}/roles",
-            "bound_claims": {
-                "/resource_access/{{ keycloak.client_id }}/roles" : ["manager"]
-              },
-          }
-      reader_payload: |-
-         {
-            "user_claim": "sub",
-            "role_type": "jwt",
-            "bound_audiences": "{{ keycloak.client_id | quote }}",
-            "policies": "reader",
-            "ttl": "1h",
-            "groups_claim": "/resource_access/{{ keycloak.client_id }}/roles",
-            "bound_claims": {
-                "/resource_access/{{ keycloak.client_id }}/roles" : ["reader"]
-              },
-          }
+  - name: include manager role payload
+    include_vars:
+      file: payloads/jwt_role_manager.json
+      name: manager_payload
+
+  - name: Debug
+    debug:
+      msg:  "{{ manager_payload  }}"
 
   - name: create manager role
     command:
       cmd: kubectl exec -i vault-0 -- vault write auth/jwt/role/manager -
-      stdin: "{{ manager_payload | to_json | quote }}"
+      stdin: "{{ manager_payload | to_json }}"
 
   # - name: create reader role
   #   command:
