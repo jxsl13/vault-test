@@ -6,7 +6,7 @@ cluster_keys.json:
   destination: "~/Development/vault-test/ansible/cluster-keys.json"
 
 keycloak:
-    url: "keycloak.local"
+    url: "http://keycloak.local"
     realm: "Bank"
     client_id: "vault"
     client_secret: "2b..."
