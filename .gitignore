@@ -7,3 +7,5 @@ k8s/**.json
 k8s/secrets/cluster-keys.json
 k8s/secrets/vault.env
 ansible/cluster-keys.json
+ansible/secrets/*.yaml
+ansible/secrets/*.json
