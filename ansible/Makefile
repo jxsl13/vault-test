@@ -11,14 +11,17 @@ requirements:
 	rm get-pip.py
 	
 	# install python modules/packages
-	python3 -m pip install openshift kubernetes pyyaml
+	python3 -m pip install openshift kubernetes pyyaml requests hvac
 	
 	# install helm plugin
-	helm plugin install https://github.com/databus23/helm-diff
+	-helm plugin install https://github.com/databus23/helm-diff
 	
 	# install kubernetes plugin
 	ansible-galaxy collection install kubernetes.core
-	
+	ansible-galaxy install 'git+https://github.com/TerryHowe/ansible-modules-hashivault.git'
+	@echo "========= ADD THESE ENVIRONMENT VARIABLES TO YOUR .bashrc =========="
+	export ANSIBLE_LIBRARY="${HOME}/.local/lib/python3.8/site-packages/ansible/modules"
+	export ANSIBLE_MODULE_UTILS="${HOME}/.local/lib/python3.8/site-packages/ansible/module_utils"
 
 delete:
 	kubectl delete namespace vault

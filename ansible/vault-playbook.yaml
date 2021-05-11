@@ -3,10 +3,25 @@
 
   gather_facts: true
 
-  environment:
-    KUBECONFIG: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
+  vars:
+    policies:
+      files: "{{ lookup('fileglob', 'policies/*.hcl').split(',') }}"
+      names: "{{ lookup('fileglob', 'policies/*.hcl').split(',') | map('basename') | map('splitext') | map('first') | list }}"
 
   tasks:
+  - debug:
+      msg: "{{ policies.files }}{{ policies.names }}"
+
+  - name:  load manager credentials var from file
+    include_vars:
+      file: secrets/manager.yaml
+      name: manager
+
+  - name:  load reader credentials var from file
+    include_vars:
+      file: secrets/reader.yaml
+      name: reader
+
   - name: switch context to vault namespace
     shell:
       cmd: kubectl config set-context $(kubectl config current-context) --namespace vault
@@ -22,10 +37,6 @@
       name: hashicorp
       repo_url: https://helm.releases.hashicorp.com
 
-  - name: load vault helm values
-    include_vars:
-        file: values/vault-values.yaml
-        name: vault_values
 
   - name: deploy vault
     kubernetes.core.helm:
@@ -35,12 +46,7 @@
       create_namespace: true
       chart_ref: hashicorp/vault
       # values used by the vault helm chart
-      release_values: "{{ vault_values }}"
-
-  - name: load consul helm values
-    include_vars:
-      file: values/consul-vault-values.yaml
-      name: consul_values
+      release_values: "{{ lookup('file', 'values/vault-values.yaml') | from_yaml }}"
 
   - name: deploy consul
     kubernetes.core.helm:
@@ -49,7 +55,7 @@
       release_namespace: vault
       create_namespace: true
       chart_ref: hashicorp/consul
-      release_values: "{{ consul_values }}"
+      release_values: "{{ lookup('file', 'values/consul-vault-values.yaml') | from_yaml }}"
       wait: yes
 
   - name: check vault status
@@ -101,16 +107,6 @@
       file: secrets/keycloak.yaml
       name: keycloak
 
-  - name:  load manager credentials var from file
-    include_vars:
-      file: secrets/manager.yaml
-      name: manager
-
-  - name:  load reader credentials var from file
-    include_vars:
-      file: secrets/reader.yaml
-      name: reader
-
 # unseal vault in case it is sealed, we expect if vault-0 is sealed that every other vault instance is also sealed.
   - name: "unseal vault-{{ item }}"
     kubernetes.core.k8s_exec:
@@ -129,38 +125,31 @@
       name: vault
       wait: yes
 
-  - name: login
-    command:
-      cmd: kubectl exec -i vault-{{ item }} -- vault login -no-print -
-      stdin:  "{{ root_token }}"
-    with_items: [0, 1, 2]
+  - name: asign VAULT_TOKEN
+    set_fact:
+      remote_env:
+        VAULT_TOKEN: "{{ root_token }}"
+        KUBECONFIG: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
+        VAULT_ADDR: "{{ lookup('vars', 'vault').address }}"
 
-  - name:  load policy list var from file
-    include_vars:
-      file: policies/list.yaml
-      name: policies
+  - debug:
+      msg: "{{ remote_env }}"
 
-  - name: "apply {{ item }} policy"
-    command:
-      cmd: "kubectl exec -i vault-0 -- vault policy write {{ item }} -"
-      stdin:  "{{ lookup('file', 'policies/' + item + '.hcl') }}"
-    with_items: "{{ policies.list }}"
+  - name: "apply {{ item | basename | splitext }} policy"
+    hashivault_policy:
+      name: "{{ item | basename | splitext }}"
+      rules_file: "{{ item }}"
+    with_items: "{{ policies.files }}"
+    environment: "{{ remote_env }}"
 
-  - name: enable JWT
-    kubernetes.core.k8s_exec:
-      namespace: vault
-      pod: vault-0
-      command: vault auth enable jwt
-
-  - name: include configure Keycloak JWT payload
-    include_vars:
-        file: payloads/jwt_configure_keycloak.yaml
-        name: jwt_configure_keycloak_payload
+  - name: enable JWT auth
+    hashivault_auth_method:
+      method_type: jwt
+    environment: "{{ remote_env }}"
 
   - name: configure Keycloak JWT
-    command:
-      cmd: kubectl exec -i vault-0 -- vault write auth/jwt/config -
-      stdin: "{{ jwt_configure_keycloak_payload | to_json }}"
+    hashivault_oidc_auth_method_config: "{{ lookup('file', 'payloads/jwt_configure_keycloak.yaml' ) | from_yaml }}"
+    environment: "{{ remote_env }}"
 
   - name: include jwt_role payload
     include_vars:
@@ -168,17 +157,14 @@
       name: jwt_role_payload
 
   - name: create {{ item }} jwt role
-    command:
-      cmd: kubectl exec -i vault-0 -- vault write auth/jwt/role/{{ item }} -
-      stdin: "{{ jwt_role_payload | to_json }}"
-    with_items: "{{ policies.list }}"
+    hashivault_oidc_auth_role: "{{ lookup('file', 'payloads/jwt_role.yaml' ) | from_yaml }}"
+    with_items: "{{ policies.names }}"
+    environment: "{{ remote_env }}"
 
-
-  - name: enable OIDC
-    kubernetes.core.k8s_exec:
-      namespace: vault
-      pod: vault-0
-      command: vault auth enable oidc
+  - name: enable OIDC auth
+    hashivault_auth_method:
+      method_type: oidc
+    environment: "{{ remote_env }}"
 
   - name: include configure Keycloak OIDC payload
     include_vars:
