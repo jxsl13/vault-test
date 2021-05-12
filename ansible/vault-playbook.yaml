@@ -9,265 +9,270 @@
       names: "{{ lookup('fileglob', 'policies/*.hcl').split(',') | map('basename') | map('splitext') | map('first') | list }}"
 
   tasks:
-  - debug:
-      msg: "{{ policies.files }}{{ policies.names }}"
+    - debug:
+        msg: "{{ policies.files }}{{ policies.names }}"
 
-  - name:  load manager credentials var from file
-    include_vars:
-      file: secrets/manager.yaml
-      name: manager
+    - name: load manager credentials var from file
+      include_vars:
+        file: secrets/manager.yaml
+        name: manager
 
-  - name:  load reader credentials var from file
-    include_vars:
-      file: secrets/reader.yaml
-      name: reader
+    - name: load reader credentials var from file
+      include_vars:
+        file: secrets/reader.yaml
+        name: reader
 
-  - name: switch context to vault namespace
-    shell:
-      cmd: kubectl config set-context $(kubectl config current-context) --namespace vault
+    - name: switch context to vault namespace
+      shell:
+        cmd: kubectl config set-context $(kubectl config current-context) --namespace vault
 
-  - name: helm diff plugin
-    kubernetes.core.helm_plugin:
-      state: present
-      plugin_path: https://github.com/databus23/helm-diff
+    - name: helm diff plugin
+      kubernetes.core.helm_plugin:
+        state: present
+        plugin_path: https://github.com/databus23/helm-diff
 
-  - name: add helm chart repos
-    kubernetes.core.helm_repository:
-      state: present
-      name: hashicorp
-      repo_url: https://helm.releases.hashicorp.com
+    - name: add helm chart repos
+      kubernetes.core.helm_repository:
+        state: present
+        name: hashicorp
+        repo_url: https://helm.releases.hashicorp.com
 
+    - name: deploy vault
+      kubernetes.core.helm:
+        state: present
+        release_name: vault
+        release_namespace: vault
+        create_namespace: true
+        chart_ref: hashicorp/vault
+        # values used by the vault helm chart
+        release_values: "{{ lookup('file', 'values/vault-values.yaml') | from_yaml }}"
 
-  - name: deploy vault
-    kubernetes.core.helm:
-      state: present
-      release_name: vault
-      release_namespace: vault
-      create_namespace: true
-      chart_ref: hashicorp/vault
-      # values used by the vault helm chart
-      release_values: "{{ lookup('file', 'values/vault-values.yaml') | from_yaml }}"
+    - name: deploy consul
+      kubernetes.core.helm:
+        state: present
+        release_name: vault-db
+        release_namespace: vault
+        create_namespace: true
+        chart_ref: hashicorp/consul
+        release_values: "{{ lookup('file', 'values/consul-vault-values.yaml') | from_yaml }}"
+        wait: yes
 
-  - name: deploy consul
-    kubernetes.core.helm:
-      state: present
-      release_name: vault-db
-      release_namespace: vault
-      create_namespace: true
-      chart_ref: hashicorp/consul
-      release_values: "{{ lookup('file', 'values/consul-vault-values.yaml') | from_yaml }}"
-      wait: yes
+    - name: check vault status
+      kubernetes.core.k8s_exec:
+        namespace: vault
+        pod: vault-0
+        command: vault status -tls-skip-verify -format=json
+      register: vault_status
 
-  - name: check vault status
-    kubernetes.core.k8s_exec:
-      namespace: vault
-      pod: vault-0
-      command: vault status -tls-skip-verify -format=json
-    register: vault_status
+    - name: set cluster status variables
+      set_fact:
+        cluster: "{{ vault_status.stdout | from_json }}"
 
-  - name: set cluster status variables
-    set_fact:
-      cluster: "{{ vault_status.stdout | from_json }}"
+    #at this point we expect vault to be running as well as consul to be running,
+    #as consul needs more time to startup
 
-#at this point we expect vault to be running as well as consul to be running,
-#as consul needs more time to startup
+    - name: init vault
+      kubernetes.core.k8s_exec:
+        namespace: vault
+        pod: vault-0
+        command: vault operator init -key-shares=1 -key-threshold=1 -format=json
+      register: cluster_keys_result
+      when: not (cluster.initialized)
 
-  - name: init vault
-    kubernetes.core.k8s_exec:
-      namespace: vault
-      pod: vault-0
-      command: vault operator init -key-shares=1 -key-threshold=1 -format=json
-    register: cluster_keys_result
-    when: not (cluster.initialized)
+    - name: set cluster keys
+      set_fact:
+        cluster_keys: "{{ cluster_keys_result.stdout | from_json }}"
+      when: not (cluster.initialized)
 
-  - name: set cluster keys
-    set_fact:
-      cluster_keys: "{{ cluster_keys_result.stdout | from_json }}"
-    when: not (cluster.initialized)
+    - name: write var to file
+      copy:
+        content: "{{ cluster_keys | to_nice_json }}"
+        dest: "{{ lookup('vars','cluster_keys.json').destination.replace('~', ansible_env.HOME) }}"
+      when: not (cluster.initialized)
 
-  - name: write var to file
-    copy:
-      content: "{{ cluster_keys | to_nice_json }}"
-      dest: "{{ lookup('vars','cluster_keys.json').destination.replace('~', ansible_env.HOME) }}"
-    when: not (cluster.initialized)
+    # this file should exist in case the vault is already initialized
+    - name: load cluster_keys.json var from file
+      include_vars:
+        file: "{{ lookup('vars','cluster_keys.json').destination.replace('~', ansible_env.HOME) }}"
+        name: cluster_keys
 
-# this file should exist in case the vault is already initialized
-  - name:  load cluster_keys.json var from file
-    include_vars:
-      file: "{{ lookup('vars','cluster_keys.json').destination.replace('~', ansible_env.HOME) }}"
-      name: cluster_keys
+    - name: set facts from cluster-keys.json
+      set_fact:
+        unseal_keys_b64: "{{ cluster_keys.unseal_keys_b64 }}"
+        root_token: "{{ cluster_keys.root_token }}"
 
-  - name: set facts from cluster-keys.json
-    set_fact:
-      unseal_keys_b64: "{{ cluster_keys.unseal_keys_b64 }}"
-      root_token: "{{ cluster_keys.root_token }}"
+    - name: load keycloak credentials var from file
+      include_vars:
+        file: secrets/keycloak.yaml
+        name: keycloak
 
-  - name:  load keycloak credentials var from file
-    include_vars:
-      file: secrets/keycloak.yaml
-      name: keycloak
+    # unseal vault in case it is sealed, we expect if vault-0 is sealed that every other vault instance is also sealed.
+    - name: "unseal vault-{{ item }}"
+      kubernetes.core.k8s_exec:
+        namespace: vault
+        pod: "vault-{{ item }}"
+        command: "vault operator unseal {{ unseal_keys_b64 | join(' ') }}"
+      when: cluster.sealed
+      with_items: [0, 1, 2]
 
-# unseal vault in case it is sealed, we expect if vault-0 is sealed that every other vault instance is also sealed.
-  - name: "unseal vault-{{ item }}"
-    kubernetes.core.k8s_exec:
-      namespace: vault
-      pod: "vault-{{ item }}"
-      command: "vault operator unseal {{ unseal_keys_b64 | join(' ') }}"
-    when: cluster.sealed
-    with_items: [0, 1, 2]
+    # unsealed vault should also be ready, in any case.
+    - name: wait for vault to be READY
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: StatefulSet
+        namespace: vault
+        name: vault
+        wait: yes
 
-# unsealed vault should also be ready, in any case.
-  - name: wait for vault to be READY
-    kubernetes.core.k8s_info:
-      api_version: apps/v1
-      kind: StatefulSet
-      namespace: vault
-      name: vault
-      wait: yes
+    - name: asign VAULT_TOKEN and environment and construct URLs
+      set_fact:
+        remote_env:
+          VAULT_TOKEN: "{{ root_token }}"
+          KUBECONFIG: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
+          VAULT_ADDR: "{{ lookup('vars', 'vault').address }}"
+        discovery_url: "{{ keycloak.url.rstrip('/') }}/auth/realms/{{ keycloak.realm }}"
+        jwks_url: "{{ keycloak.url.rstrip('/') }}/auth/realms/{{ keycloak.realm }}/protocol/openid-connect/certs"
 
-  - name: asign VAULT_TOKEN and environment and construct URLs
-    set_fact:
-      remote_env:
-        VAULT_TOKEN: "{{ root_token }}"
-        KUBECONFIG: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
-        VAULT_ADDR: "{{ lookup('vars', 'vault').address }}"
-      discovery_url: "{{ keycloak.url.rstrip('/') }}/auth/realms/{{ keycloak.realm }}"
-      jwks_url:  "{{ keycloak.url.rstrip('/') }}/auth/realms/{{ keycloak.realm }}/protocol/openid-connect/certs"
+    - debug:
+        msg: "{{ remote_env }}"
 
-  - debug:
-      msg: "{{ remote_env }}"
+    - name: "apply {{ item | basename | splitext }} policy"
+      hashivault_policy:
+        name: "{{ item | basename | splitext }}"
+        rules_file: "{{ item }}"
+      with_items: "{{ policies.files }}"
+      environment: "{{ remote_env }}"
 
-  - name: "apply {{ item | basename | splitext }} policy"
-    hashivault_policy:
-      name: "{{ item | basename | splitext }}"
-      rules_file: "{{ item }}"
-    with_items: "{{ policies.files }}"
-    environment: "{{ remote_env }}"
+    - name: enable JWT auth
+      hashivault_auth_method:
+        method_type: jwt
+      environment: "{{ remote_env }}"
 
-  - name: enable JWT auth
-    hashivault_auth_method:
-      method_type: jwt
-    environment: "{{ remote_env }}"
+    - name: configure Keycloak JWT
+      hashivault_oidc_auth_method_config:
+        mount_point: jwt
+        default_role: reader
+        bound_issuer: "{{ discovery_url }}"
+        jwks_url: "{{ jwks_url }}"
+      environment: "{{ remote_env }}"
 
-  - name: configure Keycloak JWT
-    hashivault_oidc_auth_method_config:
-      mount_point: jwt
-      default_role: reader
-      bound_issuer: "{{ discovery_url }}"
-      jwks_url: "{{ jwks_url }}"
-    environment: "{{ remote_env }}"
-
-  - name: create {{ item }} JWT role
-    hashivault_oidc_auth_role:
-      name: "{{ item }}"
-      mount_point: jwt
-      # actual payload values below
-      user_claim: sub
-      bound_audiences:
-        - "{{ keycloak.client_id }}"
-      token_policies:
-        - "{{ item }}"
-      token_ttl: 3600
-      groups_claim: "/resource_access/{{ keycloak.client_id }}/roles"
-      bound_claims:
-        "/resource_access/{{ keycloak.client_id }}/roles":
-        - "{{ item }}"
-      # workaround: only needed by the ansible vault plugin, not actually needed by vault.
-      # https://github.com/TerryHowe/ansible-modules-hashivault/issues/336
-      allowed_redirect_uris: []
-    environment: "{{ remote_env }}"
-    with_items: "{{ policies.names }}"
-
-  - name: enable OIDC auth
-    hashivault_auth_method:
-      method_type: oidc
-    environment: "{{ remote_env }}"
-
-  - name: configure Keycloak OIDC
-    hashivault_oidc_auth_method_config:
-      mount_point: oidc
-      default_role: reader
-      bound_issuer: "{{ discovery_url }}"
-      oidc_discovery_url: "{{ discovery_url }}"
-      oidc_client_id: "{{ keycloak.client_id }}"
-      oidc_client_secret: "{{ keycloak.client_secret }}"
-    environment: "{{ remote_env }}"
-
-  - name: create {{ item }} OIDC role
-    hashivault_oidc_auth_role:
-      name: "{{ item }}"
-      mount_point: oidc
-      # actual payload values below
-      user_claim: sub
-      bound_audiences:
-        - "{{ keycloak.client_id }}"
-      token_policies:
-        - "{{ item }}"
-      token_ttl: 3600
-      groups_claim: "/resource_access/{{ keycloak.client_id }}/roles"
-      bound_claims:
-        "/resource_access/{{ keycloak.client_id }}/roles":
-        - "{{ item }}"
-      # workaround: only needed by the ansible vault plugin, not actually needed by vault.
-      # https://github.com/TerryHowe/ansible-modules-hashivault/issues/336
-      allowed_redirect_uris:
-        - http://127.0.0.1:8200/ui/vault/auth/oidc/oidc/callback
-        - http://localhost:8200/ui/vault/auth/oidc/oidc/callback
-    environment: "{{ remote_env }}"
-    with_items: "{{ policies.names }}"
-
-  - name: "get auth list"
-    hashivault_auth_list:
-    register: auth_list
-    environment: "{{ remote_env }}"
-
-  - debug:
-      msg: "{{ auth_list }}"
-
-  - name: create groups
-    hashivault_identity_group:
-      name: "{{ item }}"
-      group_type: "external"
-      policies:
+    - name: "create {{ item }} JWT role"
+      hashivault_oidc_auth_role:
+        name: "{{ item }}"
+        mount_point: jwt
+        # actual payload values below
+        user_claim: sub
+        bound_audiences:
+          - "{{ keycloak.client_id }}"
+        token_policies:
           - "{{ item }}"
-      metadata:
+        token_ttl: 3600
+        groups_claim: "/resource_access/{{ keycloak.client_id }}/roles"
+        bound_claims:
+          "/resource_access/{{ keycloak.client_id }}/roles":
+            - "{{ item }}"
+        # workaround: only needed by the ansible vault plugin, not actually needed by vault.
+        # https://github.com/TerryHowe/ansible-modules-hashivault/issues/336
+        allowed_redirect_uris: ""
+      environment: "{{ remote_env }}"
+      with_items: "{{ policies.names }}"
+
+    - name: enable OIDC auth
+      hashivault_auth_method:
+        method_type: oidc
+      environment: "{{ remote_env }}"
+
+    - name: configure Keycloak OIDC
+      hashivault_oidc_auth_method_config:
+        mount_point: oidc
+        default_role: reader
+        bound_issuer: "{{ discovery_url }}"
+        oidc_discovery_url: "{{ discovery_url }}"
+        oidc_client_id: "{{ keycloak.client_id }}"
+        oidc_client_secret: "{{ keycloak.client_secret }}"
+      environment: "{{ remote_env }}"
+
+    - name: "create {{ item }} OIDC role"
+      hashivault_oidc_auth_role:
+        name: "{{ item }}"
+        mount_point: oidc
+        # actual payload values below
+        user_claim: sub
+        bound_audiences:
+          - "{{ keycloak.client_id }}"
+        token_policies:
+          - "{{ item }}"
+        token_ttl: 3600
+        groups_claim: "/resource_access/{{ keycloak.client_id }}/roles"
+        bound_claims:
+          "/resource_access/{{ keycloak.client_id }}/roles":
+            - "{{ item }}"
+        # workaround: only needed by the ansible vault plugin, not actually needed by vault.
+        # https://github.com/TerryHowe/ansible-modules-hashivault/issues/336
+        allowed_redirect_uris:
+          - http://127.0.0.1:8200/ui/vault/auth/oidc/oidc/callback
+          - http://localhost:8200/ui/vault/auth/oidc/oidc/callback
+      environment: "{{ remote_env }}"
+      with_items: "{{ policies.names }}"
+
+    - name: "get auth list"
+      hashivault_auth_list:
+      register: auth_list
+      environment: "{{ remote_env }}"
+
+    - name: create external groups
+      hashivault_identity_group:
+        name: "external_keycloak_{{ item }}"
+        group_type: "external"
+        policies:
+          - "{{ item }}"
+        metadata:
           responsibility: "{{ item }} of k/v secrets"
-    environment: "{{ remote_env }}"
-    with_items: "{{ policies.names }}"
+      environment: "{{ remote_env }}"
+      with_items: "{{ policies.names }}"
+      register: external_groups
 
+    - debug:
+        msg: "{{ external_groups }}"
 
-  - name: create OIDC group aliases
-    hashivault_identity_group_alias:
-      name: "{{ item }}"
-      mount_accessor: "{{ auth_list.backends['oidc/'].accessor }}"
-      group_name: "{{ item }}"
-    environment: "{{ remote_env }}"
-    with_items: "{{ policies.names }}"
-    loop_control:
-      pause: 3
+    - name: create internal groups
+      hashivault_identity_group:
+        name: "{{ item.data.name | regex_replace('^external_keycloak_', '') }}"
+        group_type: "internal"
+        member_group_ids:
+          - "{{ item.data.id }}"
+        policies:
+          - "{{ item.data.name | regex_replace('^external_keycloak_', '') }}"
+        metadata:
+          responsibility: "{{ item.data.name | regex_replace('^external_keycloak_', '') }} of k/v secrets"
+      environment: "{{ remote_env }}"
+      with_items: "{{ external_groups.results }}"
+      register: internal_groups
+      when: external_groups.changed
 
-  - name: create JWT group aliases
-    hashivault_identity_group_alias:
-      name: "{{ item }}"
-      mount_accessor: "{{ auth_list.backends['jwt/'].accessor }}"
-      group_name: "{{ item }}"
-    environment: "{{ remote_env }}"
-    with_items: "{{ policies.names }}"
-    loop_control:
-      pause: 3
+    - debug:
+        msg: "{{ external_groups }}"
 
+    - name: create OIDC group aliases
+      hashivault_identity_group_alias:
+        name: "{{ item.data.name }}"
+        mount_accessor: "{{ auth_list.backends['oidc/'].accessor }}"
+        group_name: "{{ item.data.name }}"
+      environment: "{{ remote_env }}"
+      with_items: "{{ external_groups.results }}"
+      when: internal_groups.changed
 
+    - name: create JWT group aliases
+      hashivault_identity_group_alias:
+        name: "{{ item.data.name }}"
+        mount_accessor: "{{ auth_list.backends['jwt/'].accessor }}"
+        group_name: "{{ item.data.name }}"
+      environment: "{{ remote_env }}"
+      with_items: "{{ external_groups.results }}"
+      when: internal_groups.changed
 
 # - name: Populate genders
 #   set_fact:
 #     genders: "{{ genders|default({}) | combine( {item.item.name: item.stdout} ) }}"
 #   with_items: "{{ people.results }}"
-
-
-
-
-
-
-
-
 
