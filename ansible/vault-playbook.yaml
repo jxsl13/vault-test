@@ -168,9 +168,7 @@
           - "{{ item }}"
         token_ttl: 3600
         groups_claim: "/resource_access/{{ keycloak.client_id }}/roles"
-        bound_claims:
-          "/resource_access/{{ keycloak.client_id }}/roles":
-            - "{{ item }}"
+        bound_claims: "{{ lookup('template', 'payload/bound_claims.yaml') | from_yaml }}"
         # workaround: only needed by the ansible vault plugin, not actually needed by vault.
         # https://github.com/TerryHowe/ansible-modules-hashivault/issues/336
         allowed_redirect_uris: ""
@@ -204,9 +202,7 @@
           - "{{ item }}"
         token_ttl: 3600
         groups_claim: "/resource_access/{{ keycloak.client_id }}/roles"
-        bound_claims:
-          "/resource_access/{{ keycloak.client_id }}/roles":
-            - "{{ item }}"
+        bound_claims: "{{ lookup('template', 'payload/bound_claims.yaml') | from_yaml }}"
         # workaround: only needed by the ansible vault plugin, not actually needed by vault.
         # https://github.com/TerryHowe/ansible-modules-hashivault/issues/336
         allowed_redirect_uris:
@@ -220,59 +216,93 @@
       register: auth_list
       environment: "{{ remote_env }}"
 
-    - name: create external groups
+    - name: create external JWT groups
       hashivault_identity_group:
-        name: "external_keycloak_{{ item }}"
+        name: "external_jwt_{{ item }}"
         group_type: "external"
-        policies:
-          - "{{ item }}"
         metadata:
           responsibility: "{{ item }} of k/v secrets"
       environment: "{{ remote_env }}"
       with_items: "{{ policies.names }}"
-      register: external_groups
+      register: external_jwt_groups
 
-    - debug:
-        msg: "{{ external_groups }}"
+    - name: create external OIDC groups
+      hashivault_identity_group:
+        name: "external_oidc_{{ item }}"
+        group_type: "external"
+        metadata:
+          responsibility: "{{ item }} of k/v secrets"
+      environment: "{{ remote_env }}"
+      with_items: "{{ policies.names }}"
+      register: external_oidc_groups
 
     - name: create internal groups
       hashivault_identity_group:
-        name: "{{ item.data.name | regex_replace('^external_keycloak_', '') }}"
+        name: "{{ item.0 }}"
         group_type: "internal"
         member_group_ids:
-          - "{{ item.data.id }}"
+          - "{{ item.1.data.id }}"
+          - "{{ item.2.data.id }}"
         policies:
-          - "{{ item.data.name | regex_replace('^external_keycloak_', '') }}"
+          - "{{ item.0 }}"
         metadata:
-          responsibility: "{{ item.data.name | regex_replace('^external_keycloak_', '') }} of k/v secrets"
+          responsibility: "{{ item.0 }} of k/v secrets"
       environment: "{{ remote_env }}"
-      with_items: "{{ external_groups.results }}"
+      with_together:
+        - "{{ policies.names }}"
+        - "{{ external_jwt_groups.results }}"
+        - "{{ external_oidc_groups.results }}"
       register: internal_groups
-      when: external_groups.changed
+      when: external_oidc_groups.changed and external_jwt_groups.changed
 
-    - debug:
-        msg: "{{ external_groups }}"
-
-    - name: create OIDC group aliases
+    - name: create JWT external group aliases
       hashivault_identity_group_alias:
-        name: "{{ item.data.name }}"
-        mount_accessor: "{{ auth_list.backends['oidc/'].accessor }}"
-        group_name: "{{ item.data.name }}"
-      environment: "{{ remote_env }}"
-      with_items: "{{ external_groups.results }}"
-      when: internal_groups.changed
-
-    - name: create JWT group aliases
-      hashivault_identity_group_alias:
-        name: "{{ item.data.name }}"
+        name: "{{ item.0 }}"
         mount_accessor: "{{ auth_list.backends['jwt/'].accessor }}"
-        group_name: "{{ item.data.name }}"
+        group_name: "{{ item.1.data.name }}"
       environment: "{{ remote_env }}"
-      with_items: "{{ external_groups.results }}"
+      with_together:
+        - "{{ policies.names }}"
+        - "{{ external_jwt_groups.results }}"
+      register: jwt_groups
+      when: external_jwt_groups.changed
+
+    - name: create OIDC external group aliases
+      hashivault_identity_group_alias:
+        name: "{{ item.0 }}"
+        mount_accessor: "{{ auth_list.backends['oidc/'].accessor }}"
+        group_name: "{{ item.1.data.name }}"
+      environment: "{{ remote_env }}"
+      with_together:
+        - "{{ policies.names }}"
+        - "{{ external_oidc_groups.results }}"
+      register: oidc_groups
       when: internal_groups.changed
 
-# - name: Populate genders
-#   set_fact:
-#     genders: "{{ genders|default({}) | combine( {item.item.name: item.stdout} ) }}"
-#   with_items: "{{ people.results }}"
+    - name: enable secrets engine generic
+      hashivault_secret_engine:
+        name: secrets
+        backend: kv
+      environment: "{{ remote_env }}"
+      register: secrets_engine
 
+    - name: write example secret
+      hashivault_secret:
+        mount_point: "secrets/example/"
+        secret: example-secret
+        data:
+          foo: foe
+          fie: fum
+      environment: "{{ remote_env }}"
+
+    - name: enable secrets engine PKI
+      hashivault_secret_engine:
+        name: pki
+        backend: pki
+      environment: "{{ remote_env }}"
+      register: pki_engine
+
+    - name: import root certificate
+      hashivault_pki_ca_set:
+        pem_bundle: "{{ lookup('file', 'secrets/ca.pem') }}"
+      environment: "{{ remote_env }}"

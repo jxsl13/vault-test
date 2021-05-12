@@ -1,6 +1,0 @@
----
-default_role: reader
-bound_issuer: "{{ keycloak.url.rstrip('/') }}/auth/realms/{{ keycloak.realm }}"
-oidc_discovery_url: "{{ keycloak.url.rstrip('/') }}/auth/realms/{{ keycloak.realm }}"
-oidc_client_id: "{{ keycloak.client_id }}"
-oidc_client_secret: "{{ keycloak.client_secret }}"
