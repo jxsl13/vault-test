@@ -1,5 +1,9 @@
 # ansible playbook in order to provision HashiCorp Vault in a Kubernetes Environment
 
+# info
+
+[hashi vault module](https://terryhowe.github.io/ansible-modules-hashivault/modules/list_of_hashivault_modules.html)
+
 
 ## Requirements
 

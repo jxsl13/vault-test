@@ -11,6 +11,9 @@ As well as two roles that each have different
 
 This setup is a boilerplate for such a potential workflow. 
 
+## Good to know
+- [external groups may only have one alias](https://discuss.hashicorp.com/t/creating-group-aliases-does-not-create-them/24098)
+
 
 ## Requirements
 

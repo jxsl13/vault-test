@@ -125,12 +125,14 @@
       name: vault
       wait: yes
 
-  - name: asign VAULT_TOKEN
+  - name: asign VAULT_TOKEN and environment and construct URLs
     set_fact:
       remote_env:
         VAULT_TOKEN: "{{ root_token }}"
         KUBECONFIG: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
         VAULT_ADDR: "{{ lookup('vars', 'vault').address }}"
+      discovery_url: "{{ keycloak.url.rstrip('/') }}/auth/realms/{{ keycloak.realm }}"
+      jwks_url:  "{{ keycloak.url.rstrip('/') }}/auth/realms/{{ keycloak.realm }}/protocol/openid-connect/certs"
 
   - debug:
       msg: "{{ remote_env }}"
@@ -148,38 +150,118 @@
     environment: "{{ remote_env }}"
 
   - name: configure Keycloak JWT
-    hashivault_oidc_auth_method_config: "{{ lookup('file', 'payloads/jwt_configure_keycloak.yaml' ) | from_yaml }}"
+    hashivault_oidc_auth_method_config:
+      mount_point: jwt
+      default_role: reader
+      bound_issuer: "{{ discovery_url }}"
+      jwks_url: "{{ jwks_url }}"
     environment: "{{ remote_env }}"
 
-  - name: include jwt_role payload
-    include_vars:
-      file: payloads/jwt_role.yaml
-      name: jwt_role_payload
-
-  - name: create {{ item }} jwt role
-    hashivault_oidc_auth_role: "{{ lookup('file', 'payloads/jwt_role.yaml' ) | from_yaml }}"
+  - name: create {{ item }} JWT role
+    hashivault_oidc_auth_role:
+      name: "{{ item }}"
+      mount_point: jwt
+      # actual payload values below
+      user_claim: sub
+      bound_audiences:
+        - "{{ keycloak.client_id }}"
+      token_policies:
+        - "{{ item }}"
+      token_ttl: 3600
+      groups_claim: "/resource_access/{{ keycloak.client_id }}/roles"
+      bound_claims:
+        "/resource_access/{{ keycloak.client_id }}/roles":
+        - "{{ item }}"
+      # workaround: only needed by the ansible vault plugin, not actually needed by vault.
+      # https://github.com/TerryHowe/ansible-modules-hashivault/issues/336
+      allowed_redirect_uris: []
+    environment: "{{ remote_env }}"
     with_items: "{{ policies.names }}"
-    environment: "{{ remote_env }}"
 
   - name: enable OIDC auth
     hashivault_auth_method:
       method_type: oidc
     environment: "{{ remote_env }}"
 
-  - name: include configure Keycloak OIDC payload
-    include_vars:
-        file: payloads/oidc_configure_keycloak.yaml
-        name: oidc_configure_keycloak_payload
-
   - name: configure Keycloak OIDC
-    command:
-      cmd: kubectl exec -i vault-0 -- vault write auth/oidc/config -
-      stdin: "{{ oidc_configure_keycloak_payload | to_json }}"
+    hashivault_oidc_auth_method_config:
+      mount_point: oidc
+      default_role: reader
+      bound_issuer: "{{ discovery_url }}"
+      oidc_discovery_url: "{{ discovery_url }}"
+      oidc_client_id: "{{ keycloak.client_id }}"
+      oidc_client_secret: "{{ keycloak.client_secret }}"
+    environment: "{{ remote_env }}"
+
+  - name: create {{ item }} OIDC role
+    hashivault_oidc_auth_role:
+      name: "{{ item }}"
+      mount_point: oidc
+      # actual payload values below
+      user_claim: sub
+      bound_audiences:
+        - "{{ keycloak.client_id }}"
+      token_policies:
+        - "{{ item }}"
+      token_ttl: 3600
+      groups_claim: "/resource_access/{{ keycloak.client_id }}/roles"
+      bound_claims:
+        "/resource_access/{{ keycloak.client_id }}/roles":
+        - "{{ item }}"
+      # workaround: only needed by the ansible vault plugin, not actually needed by vault.
+      # https://github.com/TerryHowe/ansible-modules-hashivault/issues/336
+      allowed_redirect_uris:
+        - http://127.0.0.1:8200/ui/vault/auth/oidc/oidc/callback
+        - http://localhost:8200/ui/vault/auth/oidc/oidc/callback
+    environment: "{{ remote_env }}"
+    with_items: "{{ policies.names }}"
+
+  - name: "get auth list"
+    hashivault_auth_list:
+    register: auth_list
+    environment: "{{ remote_env }}"
+
+  - debug:
+      msg: "{{ auth_list }}"
+
+  - name: create groups
+    hashivault_identity_group:
+      name: "{{ item }}"
+      group_type: "external"
+      policies:
+          - "{{ item }}"
+      metadata:
+          responsibility: "{{ item }} of k/v secrets"
+    environment: "{{ remote_env }}"
+    with_items: "{{ policies.names }}"
+
+
+  - name: create OIDC group aliases
+    hashivault_identity_group_alias:
+      name: "{{ item }}"
+      mount_accessor: "{{ auth_list.backends['oidc/'].accessor }}"
+      group_name: "{{ item }}"
+    environment: "{{ remote_env }}"
+    with_items: "{{ policies.names }}"
+    loop_control:
+      pause: 3
+
+  - name: create JWT group aliases
+    hashivault_identity_group_alias:
+      name: "{{ item }}"
+      mount_accessor: "{{ auth_list.backends['jwt/'].accessor }}"
+      group_name: "{{ item }}"
+    environment: "{{ remote_env }}"
+    with_items: "{{ policies.names }}"
+    loop_control:
+      pause: 3
 
 
 
-# https://terryhowe.github.io/ansible-modules-hashivault/modules/list_of_hashivault_modules.html
-
+# - name: Populate genders
+#   set_fact:
+#     genders: "{{ genders|default({}) | combine( {item.item.name: item.stdout} ) }}"
+#   with_items: "{{ people.results }}"
 
 
 
