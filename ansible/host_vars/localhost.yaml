@@ -1,21 +1,45 @@
 
-
-
-
-
-provisionVault:
-  enabled: true
-
-
+# global variables
 # location of the kubeconfig file for the target cluster on the localhost machine
 kubeconfig: ~/.kube/config
-
-# where the vault root credentials should be saved
-cluster_keys.json:
-  destination: "~/Development/vault-test/ansible/cluster-keys.json"
 
 vault:
   name: vault
   namespace: vault
   create_namespace: true
   address: "http://127.0.0.1:8200"
+  keyShares: 1
+  threshold: 1
+
+
+# stage specific variables
+
+deployVault:
+  enabled: true
+  vaultValuesLocation: values/vault-values.yaml
+  consulValuesLocation: values/consul-vault-values.yaml
+
+initVault:
+  enabled: true
+
+  # where the vault root credentials should be saved
+  cluster_keys.json: "~/Development/vault-test/ansible/cluster-keys.json"
+
+unsealVault:
+  enabled: true
+  cluster_keys.json: "~/Development/vault-test/ansible/cluster-keys.json"
+
+
+configureJWT:
+  enabled: true
+  policiesDir: 'policies'
+
+configureOIDC:
+  enabled: true
+  policiesDir: 'policies'
+
+configurePKI:
+  enabled: true
+
+configureSSH:
+  enabled: true

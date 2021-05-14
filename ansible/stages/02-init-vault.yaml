@@ -1,0 +1,18 @@
+# initialize vault and get stdout
+- name: init vault
+  kubernetes.core.k8s_exec:
+    namespace: "{{ vault.namespace }}"
+    pod: "{{ vault.name }}-0"
+    command: "vault operator init -key-shares={{ vault.keyShares }} -key-threshold={{ vault.threshold }} -format=json"
+  register: cluster_keys_result
+
+# create variable from stdout JSON structure
+- name: set cluster keys
+  set_fact:
+    cluster_keys: "{{ cluster_keys_result.stdout | from_json }}"
+
+# save as JSON at specified detsination
+- name: save cluster_keys.json
+  copy:
+    content: "{{ cluster_keys | to_nice_json }}"
+    dest: "{{ clusterKeysSaveDestination }}"

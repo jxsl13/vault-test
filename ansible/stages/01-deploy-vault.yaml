@@ -1,4 +1,5 @@
-# 01-provision-vault
+# 01-deploy-vault
+
 - name: helm diff plugin
   kubernetes.core.helm_plugin:
     state: present
@@ -17,8 +18,7 @@
     release_namespace: "{{ vault.namespace }}"
     create_namespace: "{{ vault.create_namespace }}"
     chart_ref: hashicorp/vault
-    # values used by the vault helm chart
-    release_values: "{{ lookup('template', 'values/vault-values.yaml') | from_yaml }}"
+    release_values: "{{ lookup('template', vaultValuesLocation) | from_yaml }}"
 
 - name: deploy consul
   kubernetes.core.helm:
@@ -27,5 +27,5 @@
     release_namespace: "{{ vault.namespace }}"
     create_namespace: "{{ vault.create_namespace }}"
     chart_ref: hashicorp/consul
-    release_values: "{{ lookup('template', 'values/consul-vault-values.yaml') | from_yaml }}"
+    release_values: "{{ lookup('template', consulValuesLocation) | from_yaml }}"
     wait: yes

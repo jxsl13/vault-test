@@ -1,0 +1,12 @@
+
+# 00b-environment values known after vault deployment
+- name: get vault status
+  hashivault_status:
+  register: vault_status
+  environment:
+    VAULT_ADDR: "{{ vault.address }}"
+
+- name: set cluster status variable
+  set_fact:
+    cluster: "{{ vault_status.status }}"
+
