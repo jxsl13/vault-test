@@ -1,5 +1,12 @@
 
 
+
+
+
+provisionVault:
+  enabled: true
+
+
 # location of the kubeconfig file for the target cluster on the localhost machine
 kubeconfig: ~/.kube/config
 
@@ -7,8 +14,8 @@ kubeconfig: ~/.kube/config
 cluster_keys.json:
   destination: "~/Development/vault-test/ansible/cluster-keys.json"
 
-
 vault:
   name: vault
   namespace: vault
+  create_namespace: true
   address: "http://127.0.0.1:8200"

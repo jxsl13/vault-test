@@ -16,36 +16,9 @@
     - debug:
         msg: "{{ policies.files }}{{ vault }}"
 
-    - name: helm diff plugin
-      kubernetes.core.helm_plugin:
-        state: present
-        plugin_path: https://github.com/databus23/helm-diff
-
-    - name: add helm chart repos
-      kubernetes.core.helm_repository:
-        state: present
-        name: hashicorp
-        repo_url: https://helm.releases.hashicorp.com
-
-    - name: deploy vault
-      kubernetes.core.helm:
-        state: present
-        release_name: "{{ vault.name }}"
-        release_namespace: "{{ vault.namespace }}"
-        create_namespace: true
-        chart_ref: hashicorp/vault
-        # values used by the vault helm chart
-        release_values: "{{ lookup('file', 'values/vault-values.yaml') | from_yaml }}"
-
-    - name: deploy consul
-      kubernetes.core.helm:
-        state: present
-        release_name: "{{ vault.name }}-db"
-        release_namespace: "{{ vault.namespace }}"
-        create_namespace: true
-        chart_ref: hashicorp/consul
-        release_values: "{{ lookup('file', 'values/consul-vault-values.yaml') | from_yaml }}"
-        wait: yes
+    - name: stage 1 - provision vault
+      include_tasks: stages/01-provision-vault.yaml
+      when: True
 
     # - name: get vault address from cluster
     #   kubernetes.core.k8s_info:
