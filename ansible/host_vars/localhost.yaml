@@ -9,4 +9,6 @@ cluster_keys.json:
 
 
 vault:
+  name: vault
+  namespace: vault
   address: "http://127.0.0.1:8200"

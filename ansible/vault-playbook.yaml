@@ -3,28 +3,18 @@
 
   gather_facts: true
 
+  environment:
+    KUBECONFIG: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
+
   vars:
+    vault: "{{ hostvars[inventory_hostname].vault }}"
     policies:
       files: "{{ lookup('fileglob', 'policies/*.hcl').split(',') }}"
       names: "{{ lookup('fileglob', 'policies/*.hcl').split(',') | map('basename') | map('splitext') | map('first') | list }}"
 
   tasks:
     - debug:
-        msg: "{{ policies.files }}{{ policies.names }}"
-
-    - name: load manager credentials var from file
-      include_vars:
-        file: secrets/manager.yaml
-        name: manager
-
-    - name: load reader credentials var from file
-      include_vars:
-        file: secrets/reader.yaml
-        name: reader
-
-    - name: switch context to vault namespace
-      shell:
-        cmd: kubectl config set-context $(kubectl config current-context) --namespace vault
+        msg: "{{ policies.files }}{{ vault }}"
 
     - name: helm diff plugin
       kubernetes.core.helm_plugin:
@@ -40,8 +30,8 @@
     - name: deploy vault
       kubernetes.core.helm:
         state: present
-        release_name: vault
-        release_namespace: vault
+        release_name: "{{ vault.name }}"
+        release_namespace: "{{ vault.namespace }}"
         create_namespace: true
         chart_ref: hashicorp/vault
         # values used by the vault helm chart
@@ -50,31 +40,50 @@
     - name: deploy consul
       kubernetes.core.helm:
         state: present
-        release_name: vault-db
-        release_namespace: vault
+        release_name: "{{ vault.name }}-db"
+        release_namespace: "{{ vault.namespace }}"
         create_namespace: true
         chart_ref: hashicorp/consul
         release_values: "{{ lookup('file', 'values/consul-vault-values.yaml') | from_yaml }}"
         wait: yes
 
-    - name: check vault status
-      kubernetes.core.k8s_exec:
-        namespace: vault
-        pod: vault-0
-        command: vault status -tls-skip-verify -format=json
+    # - name: get vault address from cluster
+    #   kubernetes.core.k8s_info:
+    #     api_version: v1
+    #     kind: Service
+    #     namespace: "{{ vault.namespace }}"
+    #     name: "{{ vault.name }}"
+    #   register: vault_service
+
+    # this part might be used inside of a container that runs ansible and basically deploys vault in the same cluster.
+    # - name: set vault address
+    #   set_fact:
+    #     vault:
+    #       address: "https://{{ vault.name }}.{{ vault.namespace }}.svc.cluster.local"
+          # this one can be used in combination with the previous task.
+          #address: "{{ vault_service.resources.0.spec.clusterIP }}"
+
+    - name: show vault service information
+      debug:
+        msg: "{{ vault }}"
+
+    - name: get vault status
+      hashivault_status:
       register: vault_status
+      environment:
+        VAULT_ADDR: "{{ vault.address }}"
 
     - name: set cluster status variables
       set_fact:
-        cluster: "{{ vault_status.stdout | from_json }}"
+        cluster: "{{ vault_status.status }}"
 
     #at this point we expect vault to be running as well as consul to be running,
     #as consul needs more time to startup
 
     - name: init vault
       kubernetes.core.k8s_exec:
-        namespace: vault
-        pod: vault-0
+        namespace: "{{ vault.namespace }}"
+        pod: "{{ vault.name }}-0"
         command: vault operator init -key-shares=1 -key-threshold=1 -format=json
       register: cluster_keys_result
       when: not (cluster.initialized)
@@ -109,8 +118,8 @@
     # unseal vault in case it is sealed, we expect if vault-0 is sealed that every other vault instance is also sealed.
     - name: "unseal vault-{{ item }}"
       kubernetes.core.k8s_exec:
-        namespace: vault
-        pod: "vault-{{ item }}"
+        namespace: "{{ vault.namespace }}"
+        pod: "{{ vault.name }}-{{ item }}"
         command: "vault operator unseal {{ unseal_keys_b64 | join(' ') }}"
       when: cluster.sealed
       with_items: [0, 1, 2]
@@ -120,8 +129,8 @@
       kubernetes.core.k8s_info:
         api_version: apps/v1
         kind: StatefulSet
-        namespace: vault
-        name: vault
+        namespace: "{{ vault.namespace }}"
+        name: "{{ vault.name }}"
         wait: yes
 
     - name: asign VAULT_TOKEN and environment and construct URLs
@@ -129,12 +138,9 @@
         remote_env:
           VAULT_TOKEN: "{{ root_token }}"
           KUBECONFIG: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
-          VAULT_ADDR: "{{ lookup('vars', 'vault').address }}"
+          VAULT_ADDR: "{{ vault.address }}"
         discovery_url: "{{ keycloak.url.rstrip('/') }}/auth/realms/{{ keycloak.realm }}"
         jwks_url: "{{ keycloak.url.rstrip('/') }}/auth/realms/{{ keycloak.realm }}/protocol/openid-connect/certs"
-
-    - debug:
-        msg: "{{ remote_env }}"
 
     - name: "apply {{ item | basename | splitext }} policy"
       hashivault_policy:
@@ -302,7 +308,19 @@
       environment: "{{ remote_env }}"
       register: pki_engine
 
+    - name: get PKI certificate
+      hashivault_pki_cert_get:
+      register: old_pki_cert
+      environment: "{{ remote_env }}"
+
+    - name: read new PKI certificate
+      set_fact:
+        new_pki_cert:  "{{ lookup('file', 'secrets/ca.pem') }}"
+
+# if the existing certificate is an empty dictionary or a certificate string which is the prefix of the local
+# certificate + private key bundle.
     - name: import root certificate
       hashivault_pki_ca_set:
-        pem_bundle: "{{ lookup('file', 'secrets/ca.pem') }}"
+        pem_bundle: "{{ new_pki_cert }}"
       environment: "{{ remote_env }}"
+      when: (not 'certificate' in old_pki_cert.data) or (not new_pki_cert.startswith(old_pki_cert.data.certificate))
