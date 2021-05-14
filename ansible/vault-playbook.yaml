@@ -59,7 +59,7 @@
     # - name: set vault address
     #   set_fact:
     #     vault:
-    #       address: "https://{{ vault.name }}.{{ vault.namespace }}.svc.cluster.local"
+    #       address: "http://{{ vault.name }}.{{ vault.namespace }}.svc.cluster.local:8200"
           # this one can be used in combination with the previous task.
           #address: "{{ vault_service.resources.0.spec.clusterIP }}"
 
