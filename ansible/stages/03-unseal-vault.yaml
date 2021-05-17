@@ -1,0 +1,19 @@
+
+# unseal vault in case it is sealed, we expect if vault-0 is sealed 
+# that every other vault instance is also sealed.
+- name: "unseal vault-{{ item }}"
+  kubernetes.core.k8s_exec:
+    namespace: "{{ vault.namespace }}"
+    pod: "{{ vault.name }}-{{ item }}"
+    command: "vault operator unseal {{ unseal_keys_b64 }}"
+  when: cluster.sealed
+  with_items: [0, 1, 2]
+
+# unsealed vault should also be ready, in any case.
+- name: wait for vault to be READY
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: StatefulSet
+    namespace: "{{ vault.namespace }}"
+    name: "{{ vault.name }}"
+    wait: yes

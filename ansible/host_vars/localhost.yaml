@@ -1,12 +1,17 @@
 
 # global variables
 # location of the kubeconfig file for the target cluster on the localhost machine
+
+# kubeconfig location on the control server/container
 kubeconfig: ~/.kube/config
+
+policiesDir: policies
 
 vault:
   name: vault
   namespace: vault
   create_namespace: true
+  # leave this address as empty string "" in case you run the ansible control server as a container in a k8s cluster
   address: "http://127.0.0.1:8200"
   keyShares: 1
   threshold: 1
@@ -29,17 +34,21 @@ unsealVault:
   enabled: true
   cluster_keys.json: "~/Development/vault-test/ansible/cluster-keys.json"
 
+# application of policies
 
+# configuration of vault features
 configureJWT:
   enabled: true
-  policiesDir: 'policies'
 
 configureOIDC:
   enabled: true
-  policiesDir: 'policies'
+
+configureSecrets:
+  enabled: true
 
 configurePKI:
   enabled: true
+  caBundleLocation: secrets/ca.pem
 
 configureSSH:
   enabled: true

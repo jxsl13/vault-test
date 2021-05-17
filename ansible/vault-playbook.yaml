@@ -6,12 +6,6 @@
   environment:
     KUBECONFIG: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
 
-  vars:
-    vault: "{{ hostvars[inventory_hostname].vault }}"
-    policies:
-      files: "{{ lookup('fileglob', 'policies/*.hcl').split(',') }}"
-      names: "{{ lookup('fileglob', 'policies/*.hcl').split(',') | map('basename') | map('splitext') | map('first') | list }}"
-
   tasks:
     - debug:
         msg: "{{ policies.files }}{{ vault }}"
@@ -35,239 +29,25 @@
 
     - name: stage 03 - unseal vault
       include_tasks: stages/03-unseal-vault.yaml
-      when: unsealVaultEnabled and clister.sealed
+      when: unsealVaultEnabled and cluster.sealed
 
+    - name: stage 04 - apply policies
+      include_tasks: stages/04-apply-policies.yaml
 
+    - name: stage 05 - configure JWT auth
+      include_tasks: stages/05-configure-jwt.yaml
+      when: configureJWTEnabled
 
-
+    - name: stage 06 - configure OIDC auth
+      include_tasks: stages/04-configure-oidc.yaml
+      when: configureOIDCEnabled
 
 
     #at this point we expect vault to be running as well as consul to be running,
     #as consul needs more time to startup
 
 
-    # this file should exist in case the vault is already initialized
-    - name: load cluster_keys.json var from file
-      include_vars:
-        file: "{{ lookup('vars','cluster_keys.json').destination.replace('~', ansible_env.HOME) }}"
-        name: cluster_keys
 
-    - name: set facts from cluster-keys.json
-      set_fact:
-        unseal_keys_b64: "{{ cluster_keys.unseal_keys_b64 }}"
-        root_token: "{{ cluster_keys.root_token }}"
 
-    - name: load keycloak credentials var from file
-      include_vars:
-        file: secrets/keycloak.yaml
-        name: keycloak
 
-    # unseal vault in case it is sealed, we expect if vault-0 is sealed that every other vault instance is also sealed.
-    - name: "unseal vault-{{ item }}"
-      kubernetes.core.k8s_exec:
-        namespace: "{{ vault.namespace }}"
-        pod: "{{ vault.name }}-{{ item }}"
-        command: "vault operator unseal {{ unseal_keys_b64 | join(' ') }}"
-      when: cluster.sealed
-      with_items: [0, 1, 2]
 
-    # unsealed vault should also be ready, in any case.
-    - name: wait for vault to be READY
-      kubernetes.core.k8s_info:
-        api_version: apps/v1
-        kind: StatefulSet
-        namespace: "{{ vault.namespace }}"
-        name: "{{ vault.name }}"
-        wait: yes
-
-    - name: asign VAULT_TOKEN and environment and construct URLs
-      set_fact:
-        remote_env:
-          VAULT_TOKEN: "{{ root_token }}"
-          KUBECONFIG: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
-          VAULT_ADDR: "{{ vault.address }}"
-        discovery_url: "{{ keycloak.url.rstrip('/') }}/auth/realms/{{ keycloak.realm }}"
-        jwks_url: "{{ keycloak.url.rstrip('/') }}/auth/realms/{{ keycloak.realm }}/protocol/openid-connect/certs"
-
-    - name: "apply {{ item | basename | splitext }} policy"
-      hashivault_policy:
-        name: "{{ item | basename | splitext }}"
-        rules_file: "{{ item }}"
-      with_items: "{{ policies.files }}"
-      environment: "{{ remote_env }}"
-
-    - name: enable JWT auth
-      hashivault_auth_method:
-        method_type: jwt
-      environment: "{{ remote_env }}"
-
-    - name: configure Keycloak JWT
-      hashivault_oidc_auth_method_config:
-        mount_point: jwt
-        default_role: reader
-        bound_issuer: "{{ discovery_url }}"
-        jwks_url: "{{ jwks_url }}"
-      environment: "{{ remote_env }}"
-
-    - name: "create {{ item }} JWT role"
-      hashivault_oidc_auth_role:
-        name: "{{ item }}"
-        mount_point: jwt
-        # actual payload values below
-        user_claim: sub
-        bound_audiences:
-          - "{{ keycloak.client_id }}"
-        token_policies:
-          - "{{ item }}"
-        token_ttl: 3600
-        groups_claim: "/resource_access/{{ keycloak.client_id }}/roles"
-        bound_claims: "{{ lookup('template', 'payload/bound_claims.yaml') | from_yaml }}"
-        # workaround: only needed by the ansible vault plugin, not actually needed by vault.
-        # https://github.com/TerryHowe/ansible-modules-hashivault/issues/336
-        allowed_redirect_uris: ""
-      environment: "{{ remote_env }}"
-      with_items: "{{ policies.names }}"
-
-    - name: enable OIDC auth
-      hashivault_auth_method:
-        method_type: oidc
-      environment: "{{ remote_env }}"
-
-    - name: configure Keycloak OIDC
-      hashivault_oidc_auth_method_config:
-        mount_point: oidc
-        default_role: reader
-        bound_issuer: "{{ discovery_url }}"
-        oidc_discovery_url: "{{ discovery_url }}"
-        oidc_client_id: "{{ keycloak.client_id }}"
-        oidc_client_secret: "{{ keycloak.client_secret }}"
-      environment: "{{ remote_env }}"
-
-    - name: "create {{ item }} OIDC role"
-      hashivault_oidc_auth_role:
-        name: "{{ item }}"
-        mount_point: oidc
-        # actual payload values below
-        user_claim: sub
-        bound_audiences:
-          - "{{ keycloak.client_id }}"
-        token_policies:
-          - "{{ item }}"
-        token_ttl: 3600
-        groups_claim: "/resource_access/{{ keycloak.client_id }}/roles"
-        bound_claims: "{{ lookup('template', 'payload/bound_claims.yaml') | from_yaml }}"
-        # workaround: only needed by the ansible vault plugin, not actually needed by vault.
-        # https://github.com/TerryHowe/ansible-modules-hashivault/issues/336
-        allowed_redirect_uris:
-          - http://127.0.0.1:8200/ui/vault/auth/oidc/oidc/callback
-          - http://localhost:8200/ui/vault/auth/oidc/oidc/callback
-      environment: "{{ remote_env }}"
-      with_items: "{{ policies.names }}"
-
-    - name: "get auth list"
-      hashivault_auth_list:
-      register: auth_list
-      environment: "{{ remote_env }}"
-
-    - name: create external JWT groups
-      hashivault_identity_group:
-        name: "external_jwt_{{ item }}"
-        group_type: "external"
-        metadata:
-          responsibility: "{{ item }} of k/v secrets"
-      environment: "{{ remote_env }}"
-      with_items: "{{ policies.names }}"
-      register: external_jwt_groups
-
-    - name: create external OIDC groups
-      hashivault_identity_group:
-        name: "external_oidc_{{ item }}"
-        group_type: "external"
-        metadata:
-          responsibility: "{{ item }} of k/v secrets"
-      environment: "{{ remote_env }}"
-      with_items: "{{ policies.names }}"
-      register: external_oidc_groups
-
-    - name: create internal groups
-      hashivault_identity_group:
-        name: "{{ item.0 }}"
-        group_type: "internal"
-        member_group_ids:
-          - "{{ item.1.data.id }}"
-          - "{{ item.2.data.id }}"
-        policies:
-          - "{{ item.0 }}"
-        metadata:
-          responsibility: "{{ item.0 }} of k/v secrets"
-      environment: "{{ remote_env }}"
-      with_together:
-        - "{{ policies.names }}"
-        - "{{ external_jwt_groups.results }}"
-        - "{{ external_oidc_groups.results }}"
-      register: internal_groups
-      when: external_oidc_groups.changed and external_jwt_groups.changed
-
-    - name: create JWT external group aliases
-      hashivault_identity_group_alias:
-        name: "{{ item.0 }}"
-        mount_accessor: "{{ auth_list.backends['jwt/'].accessor }}"
-        group_name: "{{ item.1.data.name }}"
-      environment: "{{ remote_env }}"
-      with_together:
-        - "{{ policies.names }}"
-        - "{{ external_jwt_groups.results }}"
-      register: jwt_groups
-      when: external_jwt_groups.changed
-
-    - name: create OIDC external group aliases
-      hashivault_identity_group_alias:
-        name: "{{ item.0 }}"
-        mount_accessor: "{{ auth_list.backends['oidc/'].accessor }}"
-        group_name: "{{ item.1.data.name }}"
-      environment: "{{ remote_env }}"
-      with_together:
-        - "{{ policies.names }}"
-        - "{{ external_oidc_groups.results }}"
-      register: oidc_groups
-      when: internal_groups.changed
-
-    - name: enable secrets engine generic
-      hashivault_secret_engine:
-        name: secrets
-        backend: kv
-      environment: "{{ remote_env }}"
-      register: secrets_engine
-
-    - name: write example secret
-      hashivault_secret:
-        mount_point: "secrets/example/"
-        secret: example-secret
-        data:
-          foo: foe
-          fie: fum
-      environment: "{{ remote_env }}"
-
-    - name: enable secrets engine PKI
-      hashivault_secret_engine:
-        name: pki
-        backend: pki
-      environment: "{{ remote_env }}"
-      register: pki_engine
-
-    - name: get PKI certificate
-      hashivault_pki_cert_get:
-      register: old_pki_cert
-      environment: "{{ remote_env }}"
-
-    - name: read new PKI certificate
-      set_fact:
-        new_pki_cert:  "{{ lookup('file', 'secrets/ca.pem') }}"
-
-# if the existing certificate is an empty dictionary or a certificate string which is the prefix of the local
-# certificate + private key bundle.
-    - name: import root certificate
-      hashivault_pki_ca_set:
-        pem_bundle: "{{ new_pki_cert }}"
-      environment: "{{ remote_env }}"
-      when: (not 'certificate' in old_pki_cert.data) or (not new_pki_cert.startswith(old_pki_cert.data.certificate))

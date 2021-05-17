@@ -1,0 +1,65 @@
+- name: enable OIDC auth
+  hashivault_auth_method:
+    method_type: oidc
+  environment: "{{ environment }}"
+
+- name: configure Keycloak OIDC
+  hashivault_oidc_auth_method_config:
+    mount_point: oidc
+    default_role: reader
+    bound_issuer: "{{ discovery_url }}"
+    oidc_discovery_url: "{{ discovery_url }}"
+    oidc_client_id: "{{ keycloak.client_id }}"
+    oidc_client_secret: "{{ keycloak.client_secret }}"
+  environment: "{{ environment }}"
+
+- name: "create {{ item }} OIDC role"
+  hashivault_oidc_auth_role:
+    name: "{{ item }}"
+    mount_point: oidc
+    # actual payload values below
+    user_claim: sub
+    bound_audiences:
+      - "{{ keycloak.client_id }}"
+    token_policies:
+      - "{{ item }}"
+    token_ttl: 3600
+    groups_claim: "/resource_access/{{ keycloak.client_id }}/roles"
+    bound_claims: "{{ lookup('template', 'payload/bound_claims.yaml') | from_yaml }}"
+    # workaround: only needed by the ansible vault plugin, not actually needed by vault.
+    # https://github.com/TerryHowe/ansible-modules-hashivault/issues/336
+    allowed_redirect_uris:
+      - http://127.0.0.1:8200/ui/vault/auth/oidc/oidc/callback
+      - http://localhost:8200/ui/vault/auth/oidc/oidc/callback
+  environment: "{{ environment }}"
+  with_items: "{{ policies.names }}"
+
+
+- name: create external OIDC groups
+  hashivault_identity_group:
+    name: "external_oidc_{{ item }}"
+    group_type: "external"
+    metadata:
+      responsibility: "{{ item }} of k/v secrets"
+  environment: "{{ environment }}"
+  with_items: "{{ policies.names }}"
+  register: external_oidc_groups
+
+- name: "get OIDC auth list"
+  hashivault_auth_list:
+  register: auth_list
+  environment: "{{ environment }}"
+
+- name: create OIDC external group aliases
+  hashivault_identity_group_alias:
+    name: "{{ item.0 }}"
+    mount_accessor: "{{ auth_list.backends['oidc/'].accessor }}"
+    group_name: "{{ item.1.data.name }}"
+  environment: "{{ environment }}"
+  with_together:
+    - "{{ policies.names }}"
+    - "{{ external_oidc_groups.results }}"
+  register: oidc_groups
+  when: external_oidc_groups.changed
+
+

@@ -1,33 +1,27 @@
 # 00c-environment known after initialization of the vault
 
-# - name: get vault address from cluster
-#   kubernetes.core.k8s_info:
-#     api_version: v1
-#     kind: Service
-#     namespace: "{{ vault.namespace }}"
-#     name: "{{ vault.name }}"
-#   register: vault_service
+- name: load cluster_keys.json var from file for unsealing and configuration
+  include_vars:
+    file: "{{ lookup('vars','unsealVault')['cluster_keys.json'].replace('~', ansible_env.HOME) }}"
+    name: cluster_keys
 
-# #this part might be used inside of a container that runs ansible and basically deploys vault in the same cluster.
-# - name: set vault address
-#   set_fact:
-#     vault:
-#       address: "http://{{ vault.name }}.{{ vault.namespace }}.svc.cluster.local:8200"
 
-# TODO
-- name: construct environment variables
+# load keycloak client credentials in order to configure the JWT, OIDC authentification workflows
+- name: load keycloak credentials var from file
+  include_vars:
+    file: secrets/keycloak.yaml
+    name: keycloak
+
+
+- name: construct environment variables, keycloak urls and get unseal keys & root token
   set_facts:
+    unseal_keys_b64: "{{ cluster_keys.unseal_keys_b64.join(' ') }}"
+    root_token: "{{ cluster_keys.root_token }}"
+
+    discovery_url: "{{ keycloak.url.rstrip('/') }}/auth/realms/{{ keycloak.realm }}"
+    jwks_url: "{{ keycloak.url.rstrip('/') }}/auth/realms/{{ keycloak.realm }}/protocol/openid-connect/certs"
+
     environment:
       KUBECONFIG: "{{ kubeconfig }}"
-      VAULT_ADDR: "{{ hostvars[inventory_hostname].vault.address }}"
-      VAULT_TOKEN: "{{ lookup('vars', 'initVault')['cluster_keys.json'].destination.replace('~', ansible_env.HOME) }}"
-
-- name: load cluster_keys.json var from file
-    include_vars:
-      file: "{{ lookup('vars','cluster_keys.json').destination.replace('~', ansible_env.HOME) }}"
-      name: cluster_keys
-
-- name: set facts from cluster-keys.json
-  set_fact:
-    unseal_keys_b64: "{{ cluster_keys.unseal_keys_b64 }}"
-    root_token: "{{ cluster_keys.root_token }}"
+      VAULT_ADDR: "{{ vault.address }}"
+      VAULT_TOKEN: "{{ cluster_keys.initVault'['cluster_keys.json'].replace('~', ansible_env.HOME) }}"

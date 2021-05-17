@@ -1,0 +1,56 @@
+
+# at most one of there three tasks should run
+- name: create internal groups for JWT and OIDC
+  hashivault_identity_group:
+    name: "{{ item.0 }}"
+    group_type: "internal"
+    member_group_ids:
+      - "{{ item.1.data.id }}"
+      - "{{ item.2.data.id }}"
+    policies:
+      - "{{ item.0 }}"
+    metadata:
+      responsibility: "{{ item.0 }} of k/v secrets"
+  environment: "{{ environment }}"
+  with_together:
+    - "{{ policies.names }}"
+    - "{{ external_jwt_groups.results }}"
+    - "{{ external_oidc_groups.results }}"
+  register: internal_groups
+  when: external_oidc_groups.changed and external_jwt_groups.changed and (configureJWT and configureOIDC)
+
+
+- name: create internal groups for JWT
+  hashivault_identity_group:
+    name: "{{ item.0 }}"
+    group_type: "internal"
+    member_group_ids:
+      - "{{ item.1.data.id }}"
+    policies:
+      - "{{ item.0 }}"
+    metadata:
+      responsibility: "{{ item.0 }} of k/v secrets"
+  environment: "{{ environment }}"
+  with_together:
+    - "{{ policies.names }}"
+    - "{{ external_jwt_groups.results }}"
+  register: internal_groups
+  when: external_jwt_groups.changed and (configureJWT and (not configureOIDC))
+
+
+- name: create internal groups for OIDC
+  hashivault_identity_group:
+    name: "{{ item.0 }}"
+    group_type: "internal"
+    member_group_ids:
+      - "{{ item.1.data.id }}"
+    policies:
+      - "{{ item.0 }}"
+    metadata:
+      responsibility: "{{ item.0 }} of k/v secrets"
+  environment: "{{ environment }}"
+  with_together:
+    - "{{ policies.names }}"
+    - "{{ external_oidc_groups.results }}"
+  register: internal_groups
+  when: external_oidc_groups.changed and ((not configureJWT) and configureOIDC)

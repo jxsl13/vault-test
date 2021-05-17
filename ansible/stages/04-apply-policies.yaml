@@ -1,0 +1,10 @@
+
+# apply all policies in the policies folder
+- name: "apply {{ item.0 }} policy"
+  hashivault_policy:
+    name: "{{ item.0 }}"
+    rules_file: "{{ item.1 }}"
+  environment: "{{ environment }}"
+  with_together:
+    - "{{ policies.names }}"
+    - "{{ policies.files }}"

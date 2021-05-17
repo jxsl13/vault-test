@@ -1,4 +1,4 @@
-# 00a-environment known values before deplyoment
+# 00a-environment known values before deployment
 
 
 - name: setting global environment variables
@@ -7,6 +7,7 @@
     kubeconfig: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
     # some vault variables for naming
     vault: "{{ lookup('vars', 'vault') }}"
+    policiesDir: "{{ lookup('vars', 'policiesDir').strip('/').replace('~', ansible_env.HOME) | default('policies') }}"
 
     # 01
     deployVaultEnabled: "{{ lookup('vars', 'deployVault').enabled | default(False) }}"
@@ -17,18 +18,19 @@
     # 03
     unsealVaultEnabled: "{{ lookup('vars', 'initVault').enabled | default(False) }}"
 
-    # 04
-    configureJWTEnabled: "{{ lookup('vars', 'configureJWT').enabled | default(True) }}"
-    policiesJWTDir: "{{ lookup('vars', 'configureJWT').policiesDir.strip('/') | default('policies') }}"
 
     # 05
-    configureOIDCEnabled: "{{ lookup('vars', 'configureOIDC').enabled | default(True) }}"
-    policiesOIDCDir: "{{ lookup('vars', 'configureOIDC').policiesDir.strip('/') | default('policies') }}"
+    configureJWTEnabled: "{{ lookup('vars', 'configureJWT').enabled | default(True) }}"
 
     # 06
-    configurePKIEnabled: "{{ lookup('vars', 'configurePKI').enabled | default(True) }}"
+    configureOIDCEnabled: "{{ lookup('vars', 'configureOIDC').enabled | default(True) }}"
+
+    configureSecretsEnabled: "{{ lookup('vars', 'configureSecrets').enabled | default(True) }}"
 
     # 07
+    configurePKIEnabled: "{{ lookup('vars', 'configurePKI').enabled | default(True) }}"
+
+    # 08
     configureSSHEnabled: "{{ lookup('vars', 'configureSSH').enabled | default(True) }}"
 
 
@@ -57,18 +59,16 @@
     clusterKeysSaveDestination: "{{ lookup('vars', 'unsealVault')['cluster_keys.json'] | default( (playbook_dir, 'secrets/cluster_keys.json') | path_join ) }}"
   when: unsealVaultEnabled
 
-# 04
-- name: setting policy files for JWT config
-  set_facts:
-    policiesJWT:
-      files: "{{ lookup('fileglob', policiesJWTDir + '/*.hcl').split(',') }}"
-      names: "{{ lookup('fileglob', policiesJWTDir + '/*.hcl').split(',') | map('basename') | map('splitext') | map('first') | list }}"
-  when: configureJWTEnabled
 
-# 05
-- name: setting policy files for OIDC config
+- name: setting policy files and names
   set_facts:
-    policiesOIDC:
-      files: "{{ lookup('fileglob', policiesOIDCDir + '/*.hcl').split(',') }}"
-      names: "{{ lookup('fileglob', policiesOIDCDir + '/*.hcl').split(',') | map('basename') | map('splitext') | map('first') | list }}"
-  when: configureOIDCEnabled
+    policies:
+      files: "{{ lookup('fileglob', policiesDir + '/*.hcl').split(',') }}"
+      names: "{{ lookup('fileglob', policiesDir + '/*.hcl').split(',') | map('basename') | map('splitext') | map('first') | list }}"
+  when: configureOIDCEnabled or configureJWTEnabled
+
+
+- name: get PKI CA bundle file location
+  set_facts:
+    caBundleLocation: "{{ lookup('vars', 'configurePKI').caBundleLocation | default( (playbook_dir, 'secrets/ca.pem') | path_join ) }}"
+  when: configurePKIEnabled
