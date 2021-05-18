@@ -7,14 +7,11 @@
     KUBECONFIG: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
 
   tasks:
-    - debug:
-        msg: "{{ policies.files }}{{ vault }}"
-
     - name: stage 00a - parse configuration & environment (host config)
       include_tasks: stages/00a-environment.yaml
 
     - name: stage 01 - deploy vault
-      include_tasks: stages/01-provision-vault.yaml
+      include_tasks: stages/01-deploy-vault.yaml
       when: deployVaultEnabled
 
     - name: stage 00b - parse configuration & environment (cluster status)
@@ -39,8 +36,16 @@
       when: configureJWTEnabled
 
     - name: stage 06 - configure OIDC auth
-      include_tasks: stages/04-configure-oidc.yaml
+      include_tasks: stages/06-configure-oidc.yaml
       when: configureOIDCEnabled
+
+    - name: stage 07 - create internal groups
+      include_tasks: stages/07-create-internal-groups.yaml
+      when: configureJWTEnabled or configureOIDCEnabled
+
+    - name: stage 08 - configure secrets
+      include_tasks: stages/08-configure-secrets.yaml
+      when: configureSecretsEnabled
 
 
     #at this point we expect vault to be running as well as consul to be running,

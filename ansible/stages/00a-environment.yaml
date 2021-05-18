@@ -2,7 +2,7 @@
 
 
 - name: setting global environment variables
-  set_facts:
+  set_fact:
     # localtion of the cluster access token and context
     kubeconfig: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
     # some vault variables for naming
@@ -25,50 +25,56 @@
     # 06
     configureOIDCEnabled: "{{ lookup('vars', 'configureOIDC').enabled | default(True) }}"
 
+    # 08
     configureSecretsEnabled: "{{ lookup('vars', 'configureSecrets').enabled | default(True) }}"
 
-    # 07
+    # 09
     configurePKIEnabled: "{{ lookup('vars', 'configurePKI').enabled | default(True) }}"
 
-    # 08
+    # 10
     configureSSHEnabled: "{{ lookup('vars', 'configureSSH').enabled | default(True) }}"
+    cacheable: yes
 
+- name: debug
+  debug:
+    msg: "{{ vault.name }}"
 
 # 00 use default address in case no address was provided
 - name: parse vault configuration
-  set_facts:
+  set_fact:
     vault:
-      address: "{{ vault.address | default(f'http://{vault.name}.{vault.namespace}.svc.cluster.local:8200') }}"
+      address: "{{ vault.address | default('http://' + vault.name + '.' + vault.namespace + '.svc.cluster.local:8200') }}"
 
 # 01
 - name: get vault helm chart values locations
-  set_facts:
+  set_fact:
     vaultValuesLocation: "{{ lookup('vars', 'deployVault').vaultValuesLocation | default('values/vault-values.yaml') }}"
     consulValuesLocation: "{{ lookup('vars', 'deployVault').consulValuesLocation | default('values/consul-vault-values.yaml') }}"
   when: deployVaultEnabled
 
 # 02
 - name: set cluster_keys.json save destination
-  set_facts:
-    clusterKeysSaveDestination: "{{ lookup('vars', 'initVault')['cluster_keys.json'] | default( (playbook_dir, 'secrets/cluster_keys.json') | path_join ) }}"
+  set_fact:
+    clusterKeysSaveDestination: "{{ lookup('vars', 'initVault')['cluster_keys.json'] | default( '/'.join((playbook_dir, 'secrets/cluster_keys.json')) ) }}"
   when: initVaultEnabled
 
 # 03
 - name: set cluster_keys.json load location
-  set_facts:
-    clusterKeysSaveDestination: "{{ lookup('vars', 'unsealVault')['cluster_keys.json'] | default( (playbook_dir, 'secrets/cluster_keys.json') | path_join ) }}"
+  set_fact:
+    clusterKeysSaveDestination: "{{ lookup('vars', 'unsealVault')['cluster_keys.json'] | default( '/'.join((playbook_dir, 'secrets/cluster_keys.json')) ) }}"
   when: unsealVaultEnabled
 
-
+# 04
 - name: setting policy files and names
-  set_facts:
+  set_fact:
     policies:
       files: "{{ lookup('fileglob', policiesDir + '/*.hcl').split(',') }}"
       names: "{{ lookup('fileglob', policiesDir + '/*.hcl').split(',') | map('basename') | map('splitext') | map('first') | list }}"
   when: configureOIDCEnabled or configureJWTEnabled
 
 
+# 09
 - name: get PKI CA bundle file location
-  set_facts:
-    caBundleLocation: "{{ lookup('vars', 'configurePKI').caBundleLocation | default( (playbook_dir, 'secrets/ca.pem') | path_join ) }}"
+  set_fact:
+    caBundleLocation: "{{ lookup('vars', 'configurePKI').caBundleLocation | default( '/'.join((playbook_dir, 'secrets/ca.pem')) ) }}"
   when: configurePKIEnabled

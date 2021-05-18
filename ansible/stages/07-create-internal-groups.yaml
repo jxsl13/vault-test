@@ -1,5 +1,5 @@
 
-# at most one of there three tasks should run
+# at most one of there three tasks should run !!!!!!!!
 - name: create internal groups for JWT and OIDC
   hashivault_identity_group:
     name: "{{ item.0 }}"
@@ -17,7 +17,7 @@
     - "{{ external_jwt_groups.results }}"
     - "{{ external_oidc_groups.results }}"
   register: internal_groups
-  when: external_oidc_groups.changed and external_jwt_groups.changed and (configureJWT and configureOIDC)
+  when: external_oidc_groups.changed and external_jwt_groups.changed and (configureJWTEnabled and configureOIDCEnabled)
 
 
 - name: create internal groups for JWT
@@ -35,7 +35,7 @@
     - "{{ policies.names }}"
     - "{{ external_jwt_groups.results }}"
   register: internal_groups
-  when: external_jwt_groups.changed and (configureJWT and (not configureOIDC))
+  when: external_jwt_groups.changed and (configureJWTEnabled and (not configureOIDCEnabled))
 
 
 - name: create internal groups for OIDC
@@ -53,4 +53,4 @@
     - "{{ policies.names }}"
     - "{{ external_oidc_groups.results }}"
   register: internal_groups
-  when: external_oidc_groups.changed and ((not configureJWT) and configureOIDC)
+  when: external_oidc_groups.changed and ((not configureJWTEnabled) and configureOIDCEnabled)
