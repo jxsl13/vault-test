@@ -10,3 +10,7 @@ ansible/cluster-keys.json
 ansible/secrets/*.yaml
 ansible/secrets/*.json
 ansible/secrets/*.pem
+
+ansible/**/secrets/*.yaml
+ansible/**/secrets/*.json
+ansible/**/secrets/*.pem
