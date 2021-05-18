@@ -1,19 +1,56 @@
+- name: stage 03 - unseal vault
+  hosts: localhost
+  gather_facts: false
+  tasks:
 
-# unseal vault in case it is sealed, we expect if vault-0 is sealed 
-# that every other vault instance is also sealed.
-- name: "unseal vault-{{ item }}"
-  kubernetes.core.k8s_exec:
-    namespace: "{{ vault.namespace }}"
-    pod: "{{ vault.name }}-{{ item }}"
-    command: "vault operator unseal {{ unseal_keys_b64 }}"
-  when: cluster.sealed
-  with_items: [0, 1, 2]
+  - name: is stage enabled
+    set_fact:
+      unsealVaultEnabled: "{{ lookup('vars', 'unsealVault').enabled | default(False) }}"
 
-# unsealed vault should also be ready, in any case.
-- name: wait for vault to be READY
-  kubernetes.core.k8s_info:
-    api_version: apps/v1
-    kind: StatefulSet
-    namespace: "{{ vault.namespace }}"
-    name: "{{ vault.name }}"
-    wait: yes
+  - name: load cluster_keys.json var from file for unsealing
+    include_vars:
+      file: "{{ lookup('vars','unsealVault')['cluster_keys.json'].replace('~', ansible_env.HOME) }}"
+      name: cluster_keys
+    when: unsealVaultEnabled
+
+  - name: get environment & variables
+    set_fact:
+      kubeconfig: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
+      vault: "{{ lookup('vars', 'vault') }}"
+      clusterKeysSaveDestination: "{{ lookup('vars', 'unsealVault')['cluster_keys.json'] | default( '/'.join((playbook_dir, 'secrets/cluster_keys.json')) ) }}"
+      unseal_keys_b64: "{{ ' '.join(cluster_keys.unseal_keys_b64) }}"
+    when: unsealVaultEnabled
+
+  - name: get vault status
+    hashivault_status:
+    register: vault_status
+    environment:
+      VAULT_ADDR: "{{ vault.address }}"
+    when: unsealVaultEnabled
+
+  - name: set cluster status variable
+    set_fact:
+      cluster: "{{ vault_status.status }}"
+    when: unsealVaultEnabled
+
+  # unseal vault in case it is sealed, we expect if vault-0 is sealed
+  # that every other vault instance is also sealed.
+  - name: "unseal vault-{{ item }}"
+    kubernetes.core.k8s_exec:
+      kubeconfig: "{{ kubeconfig }}"
+      namespace: "{{ vault.namespace }}"
+      pod: "{{ vault.name }}-{{ item }}"
+      command: "vault operator unseal {{ unseal_keys_b64 }}"
+    with_items: [0, 1, 2]
+    when: unsealVaultEnabled and cluster.sealed
+
+  # unsealed vault should also be ready, in any case.
+  - name: wait for vault to be READY
+    kubernetes.core.k8s_info:
+      kubeconfig: "{{ kubeconfig }}"
+      api_version: apps/v1
+      kind: StatefulSet
+      namespace: "{{ vault.namespace }}"
+      name: "{{ vault.name }}"
+      wait: yes
+    when: unsealVaultEnabled

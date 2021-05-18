@@ -1,4 +1,7 @@
 - import_playbook: stages/01-deploy-vault.yaml
+- import_playbook: stages/02-init-vault.yaml
+- import_playbook: stages/03-unseal-vault.yaml
+
 
 - name: Deploy Vault in Kubernetes
   hosts: localhost
@@ -11,16 +14,8 @@
     - name: stage 00a - parse configuration & environment (host config)
       include_tasks: stages/00a-environment.yaml
 
-    - name: stage 01 - deploy vault
-      include_tasks: stages/01-deploy-vault.yaml
-      when: deployVaultEnabled
-
     - name: stage 00b - parse configuration & environment (cluster status)
       include_tasks: stages/00b-environment.yaml
-
-    - name: stage 02 - init vault
-      include_tasks: stages/02-init-vault.yaml
-      when: initVaultEnabled and (not cluster.initialized)
 
     - name: stage 00c - parse configuration & environment (unseal keys & tokens)
       include_tasks: stages/02-init-vault.yaml

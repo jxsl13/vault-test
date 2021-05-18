@@ -16,7 +16,7 @@
     initVaultEnabled: "{{ lookup('vars', 'initVault').enabled | default(False) }}"
 
     # 03
-    unsealVaultEnabled: "{{ lookup('vars', 'initVault').enabled | default(False) }}"
+    unsealVaultEnabled: "{{ lookup('vars', 'unsealVault').enabled | default(False) }}"
 
 
     # 05
