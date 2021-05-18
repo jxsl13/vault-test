@@ -56,3 +56,5 @@ configurePKI:
 
 configureSSH:
   enabled: true
+  privateKeyLocation: secrets/ssh
+  publicKeyLocation: secrets/ssh.pub

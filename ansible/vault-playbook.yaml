@@ -1,44 +1,18 @@
+
 - import_playbook: stages/01-deploy-vault.yaml
 - import_playbook: stages/02-init-vault.yaml
 - import_playbook: stages/03-unseal-vault.yaml
 - import_playbook: stages/04-apply-policies.yaml
 - import_playbook: stages/05-configure-jwt.yaml
-- name: Deploy Vault in Kubernetes
-  hosts: localhost
+- import_playbook: stages/06-configure-oidc.yaml
 
-  gather_facts: true
-  environment:
-    KUBECONFIG: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
+# this stage is not possible to execute unless stages 5 through 7 are put into the same file
+#- import_playbook: stages/07-create-internal-groups.yaml
 
-  tasks:
-    - name: stage 00a - parse configuration & environment (host config)
-      include_tasks: stages/00a-environment.yaml
+- import_playbook: stages/08-configure-secrets.yaml
+- import_playbook: stages/09-configure-pki.yaml
+- import_playbook: stages/10-configure-ssh.yaml
 
-    - name: stage 00b - parse configuration & environment (cluster status)
-      include_tasks: stages/00b-environment.yaml
-
-    - name: stage 00c - parse configuration & environment (unseal keys & tokens)
-      include_tasks: stages/02-init-vault.yaml
-
-    - name: stage 05 - configure JWT auth
-      include_tasks: stages/05-configure-jwt.yaml
-      when: configureJWTEnabled
-
-    - name: stage 06 - configure OIDC auth
-      include_tasks: stages/06-configure-oidc.yaml
-      when: configureOIDCEnabled
-
-    - name: stage 07 - create internal groups
-      include_tasks: stages/07-create-internal-groups.yaml
-      when: configureJWTEnabled or configureOIDCEnabled
-
-    - name: stage 08 - configure secrets
-      include_tasks: stages/08-configure-secrets.yaml
-      when: configureSecretsEnabled
-
-
-    #at this point we expect vault to be running as well as consul to be running,
-    #as consul needs more time to startup
 
 
 

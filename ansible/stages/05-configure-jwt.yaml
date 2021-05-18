@@ -24,8 +24,15 @@
 
       remote_env:
         KUBECONFIG: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
-        VAULT_ADDR: "{{ lookup('vars', 'vault').address }}"
+        VAULT_ADDR: "{{ lookup('vars', 'vault').address | default('http://' + vault.name + '.' + vault.namespace + '.svc.cluster.local:8200') }}"
         VAULT_TOKEN: "{{ cluster_keys.root_token }}"
+    when: configureJWTEnabled
+
+  - name: get policy files and names
+    set_fact:
+      policies:
+        files: "{{ lookup('fileglob', policiesDir + '/*.hcl').split(',') }}"
+        names: "{{ lookup('fileglob', policiesDir + '/*.hcl').split(',') | map('basename') | map('splitext') | map('first') | list }}"
     when: configureJWTEnabled
 
   - name: enable JWT auth
@@ -89,4 +96,4 @@
       - "{{ policies.names }}"
       - "{{ external_jwt_groups.results }}"
     register: jwt_groups
-    when: external_jwt_groups.changed and configureJWTEnabled
+    when: configureJWTEnabled and external_jwt_groups.changed
