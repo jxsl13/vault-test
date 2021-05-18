@@ -1,8 +1,9 @@
+- import_playbook: stages/01-deploy-vault.yaml
+
 - name: Deploy Vault in Kubernetes
   hosts: localhost
 
   gather_facts: true
-
   environment:
     KUBECONFIG: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
 

@@ -33,7 +33,6 @@
 
     # 10
     configureSSHEnabled: "{{ lookup('vars', 'configureSSH').enabled | default(True) }}"
-    cacheable: yes
 
 - name: debug
   debug:
@@ -44,24 +43,28 @@
   set_fact:
     vault:
       address: "{{ vault.address | default('http://' + vault.name + '.' + vault.namespace + '.svc.cluster.local:8200') }}"
+  delegate_to: localhost
 
 # 01
 - name: get vault helm chart values locations
   set_fact:
     vaultValuesLocation: "{{ lookup('vars', 'deployVault').vaultValuesLocation | default('values/vault-values.yaml') }}"
     consulValuesLocation: "{{ lookup('vars', 'deployVault').consulValuesLocation | default('values/consul-vault-values.yaml') }}"
+  delegate_to: localhost
   when: deployVaultEnabled
 
 # 02
 - name: set cluster_keys.json save destination
   set_fact:
     clusterKeysSaveDestination: "{{ lookup('vars', 'initVault')['cluster_keys.json'] | default( '/'.join((playbook_dir, 'secrets/cluster_keys.json')) ) }}"
+  delegate_to: localhost
   when: initVaultEnabled
 
 # 03
 - name: set cluster_keys.json load location
   set_fact:
     clusterKeysSaveDestination: "{{ lookup('vars', 'unsealVault')['cluster_keys.json'] | default( '/'.join((playbook_dir, 'secrets/cluster_keys.json')) ) }}"
+  delegate_to: localhost
   when: unsealVaultEnabled
 
 # 04
@@ -70,6 +73,7 @@
     policies:
       files: "{{ lookup('fileglob', policiesDir + '/*.hcl').split(',') }}"
       names: "{{ lookup('fileglob', policiesDir + '/*.hcl').split(',') | map('basename') | map('splitext') | map('first') | list }}"
+  delegate_to: localhost
   when: configureOIDCEnabled or configureJWTEnabled
 
 
@@ -77,4 +81,5 @@
 - name: get PKI CA bundle file location
   set_fact:
     caBundleLocation: "{{ lookup('vars', 'configurePKI').caBundleLocation | default( '/'.join((playbook_dir, 'secrets/ca.pem')) ) }}"
+  delegate_to: localhost
   when: configurePKIEnabled
