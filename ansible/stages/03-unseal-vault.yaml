@@ -5,8 +5,9 @@
 
   - name: is stage enabled
     set_fact:
-      unsealVaultEnabled: "{{ lookup('vars', 'unsealVault').enabled | default(False) }}"
+      unsealVaultEnabled: "{{ lookup('vars', 'unsealVault').enabled | default(True) }}"
 
+# do not put any conditions for this step
   - name: load cluster_keys.json var from file for unsealing
     include_vars:
       file: "{{ lookup('vars','cluster_keys').replace('~', ansible_env.HOME) }}"
@@ -17,7 +18,6 @@
     set_fact:
       kubeconfig: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
       vault: "{{ lookup('vars', 'vault') }}"
-      clusterKeysSaveDestination: "{{ lookup('vars', 'cluster_keys') | default( '/'.join((playbook_dir, 'secrets/cluster_keys.json')) ) }}"
       unseal_keys_b64: "{{ ' '.join(cluster_keys.unseal_keys_b64) }}"
     when: unsealVaultEnabled
 
@@ -37,10 +37,11 @@
   # that every other vault instance is also sealed.
   - name: "unseal vault-{{ item }}"
     kubernetes.core.k8s_exec:
-      kubeconfig: "{{ kubeconfig }}"
       namespace: "{{ vault.namespace }}"
       pod: "{{ vault.name }}-{{ item }}"
       command: "vault operator unseal {{ unseal_keys_b64 }}"
+    environment:
+      KUBECONFIG: "{{ kubeconfig }}"
     with_items: [0, 1, 2]
     when: unsealVaultEnabled and cluster.sealed
 

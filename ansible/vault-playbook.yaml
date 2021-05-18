@@ -2,7 +2,7 @@
 - import_playbook: stages/02-init-vault.yaml
 - import_playbook: stages/03-unseal-vault.yaml
 - import_playbook: stages/04-apply-policies.yaml
-
+- import_playbook: stages/05-configure-jwt.yaml
 - name: Deploy Vault in Kubernetes
   hosts: localhost
 
@@ -19,9 +19,6 @@
 
     - name: stage 00c - parse configuration & environment (unseal keys & tokens)
       include_tasks: stages/02-init-vault.yaml
-
-    - name: stage 04 - apply policies
-      include_tasks: stages/04-apply-policies.yaml
 
     - name: stage 05 - configure JWT auth
       include_tasks: stages/05-configure-jwt.yaml

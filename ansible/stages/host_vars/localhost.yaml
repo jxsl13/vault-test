@@ -4,8 +4,15 @@
 
 # kubeconfig location on the control server/container
 kubeconfig: ~/.kube/config
+
+# will save the secrets and unseal keys in that file
 cluster_keys: "~/Development/vault-test/ansible/cluster-keys.json"
+
+# a directory with access policies
 policiesDir: policies
+
+# a secrets file containing keycloak client credentials
+keycloakCredentials: secrets/keycloak.yaml
 
 vault:
   name: vault

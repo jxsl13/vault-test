@@ -1,22 +1,24 @@
-- name: stages/04-apply-policies.yaml
+- name: stage 04 - apply policies
   hosts: localhost
   gather_facts: false
   tasks:
 
-  - debug:
-      msg: "{{ lookup('vars','cluster_keys')}}"
+  - name: get stage enabled
+    set_fact:
+      configureJWTEnabled: "{{ lookup('vars', 'configureJWT').enabled | default(True) }}"
+      configureOIDCEnabled: "{{ lookup('vars', 'configureOIDC').enabled | default(True) }}"
 
   - name: get environment & variables
     set_fact:
       kubeconfig: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
       vault: "{{ lookup('vars', 'vault') }}"
       policiesDir: "{{ lookup('vars', 'policiesDir').strip('/').replace('~', ansible_env.HOME) | default('policies') }}"
-      configureJWTEnabled: "{{ lookup('vars', 'configureJWT').enabled | default(True) }}"
-      configureOIDCEnabled: "{{ lookup('vars', 'configureOIDC').enabled | default(True) }}"
+
       remote_env:
         KUBECONFIG: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
         VAULT_ADDR: "{{ lookup('vars', 'vault').address }}"
         VAULT_TOKEN: "{{ cluster_keys.root_token }}"
+    when: configureOIDCEnabled or configureJWTEnabled
 
   - name: get policy files and names
     set_fact:
