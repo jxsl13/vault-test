@@ -11,7 +11,7 @@
     set_fact:
       kubeconfig: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
       vault: "{{ lookup('vars', 'vault') }}"
-      clusterKeysSaveDestination: "{{ lookup('vars', 'initVault')['cluster_keys.json'] | default( '/'.join((playbook_dir, 'secrets/cluster_keys.json')) ) }}"
+      clusterKeysSaveDestination: "{{ lookup('vars', 'cluster_keys') | default( '/'.join((playbook_dir, 'secrets/cluster_keys.json')) ) }}"
     when: initVaultEnabled
 
   - name: get vault status

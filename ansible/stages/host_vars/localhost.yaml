@@ -4,7 +4,7 @@
 
 # kubeconfig location on the control server/container
 kubeconfig: ~/.kube/config
-
+cluster_keys: "~/Development/vault-test/ansible/cluster-keys.json"
 policiesDir: policies
 
 vault:
@@ -27,12 +27,9 @@ deployVault:
 initVault:
   enabled: true
 
-  # where the vault root credentials should be saved
-  cluster_keys.json: "~/Development/vault-test/ansible/cluster-keys.json"
-
 unsealVault:
   enabled: true
-  cluster_keys.json: "~/Development/vault-test/ansible/cluster-keys.json"
+
 
 # application of policies
 
