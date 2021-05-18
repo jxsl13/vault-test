@@ -14,3 +14,5 @@ ansible/secrets/*.pem
 ansible/**/secrets/*.yaml
 ansible/**/secrets/*.json
 ansible/**/secrets/*.pem
+ansible/stages/secrets/ssh
+ansible/stages/secrets/ssh.pub
