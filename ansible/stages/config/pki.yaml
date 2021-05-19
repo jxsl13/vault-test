@@ -1,0 +1,39 @@
+allow_any_name: no
+allow_bare_domains: no
+allow_glob_domains: no
+allow_ip_sans: yes
+allow_localhost: yes
+allow_subdomains: no
+allowed_domains: []
+allowed_uri_sans: ""
+basic_constraints_valid_for_non_ca: no
+client_flag: yes
+code_signing_flag: no
+country: []
+email_protection_flag: no
+enforce_hostnames: yes
+ext_key_usage : []
+ext_key_usage_oids: ""
+generate_lease: no
+key_bits: 2048
+key_type: "rsa"
+key_usage:
+ - "DigitalSignature"
+ - "KeyAgreement"
+ - "KeyEncipherment"
+locality: []
+max_ttl: ""
+no_store: no
+not_before_duration: "30s"
+organization: []
+ou: []
+policy_identifiers: []
+postal_code: []
+province: []
+require_cn: yes
+serial_number: ""
+server_flag: yes
+street_address: []
+ttl: "24h"
+use_csr_common_name: yes
+use_csr_sans: yes

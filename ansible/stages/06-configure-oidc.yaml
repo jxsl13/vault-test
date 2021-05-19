@@ -1,11 +1,17 @@
 - name: stage 06 - configure OIDC auth
   hosts: localhost
-  gather_facts: false
+  gather_facts: true
   tasks:
 
   - name: is stage enabled
     set_fact:
       configureOIDCEnabled: "{{ lookup('vars', 'configureOIDC').enabled | default(True) }}"
+
+  - name: load cluster_keys.json var from file for ssh
+    include_vars:
+      file: "{{ lookup('vars','cluster_keys').replace('~', ansible_env.HOME) }}"
+      name: cluster_keys
+    when: configureOIDCEnabled and (cluster_keys.root_token is undefined)
 
   - name: load keycloak credentials var from file
     include_vars:
@@ -101,6 +107,6 @@
       - "{{ policies.names }}"
       - "{{ external_oidc_groups.results }}"
     register: oidc_groups
-    when: configureOIDCEnabled and external_oidc_groups.changed
+    when: configureOIDCEnabled and external_oidc_groups.changed and item.1.data is defined
 
 

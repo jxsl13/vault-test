@@ -1,4 +1,4 @@
-path "/secret/*" {
+path "/secrets/*" {
         capabilities = ["list", "read" ]
     }
 

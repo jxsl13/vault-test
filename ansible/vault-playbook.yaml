@@ -5,9 +5,7 @@
 - import_playbook: stages/04-apply-policies.yaml
 - import_playbook: stages/05-configure-jwt.yaml
 - import_playbook: stages/06-configure-oidc.yaml
-
-# this stage is not possible to execute unless stages 5 through 7 are put into the same file
-#- import_playbook: stages/07-create-internal-groups.yaml
+- import_playbook: stages/07-create-internal-groups.yaml
 
 - import_playbook: stages/08-configure-secrets.yaml
 - import_playbook: stages/09-configure-pki.yaml

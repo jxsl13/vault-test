@@ -1,11 +1,17 @@
 - name: stage 05 - configure JWT auth
   hosts: localhost
-  gather_facts: false
+  gather_facts: true
   tasks:
 
   - name: is stage enabled
     set_fact:
       configureJWTEnabled: "{{ lookup('vars', 'configureJWT').enabled | default(True) }}"
+
+  - name: load cluster_keys.json var from file for ssh
+    include_vars:
+      file: "{{ lookup('vars','cluster_keys').replace('~', ansible_env.HOME) }}"
+      name: cluster_keys
+    when: configureJWTEnabled and (cluster_keys.root_token is undefined)
 
   - name: load keycloak credentials var from file
     include_vars:
@@ -96,4 +102,4 @@
       - "{{ policies.names }}"
       - "{{ external_jwt_groups.results }}"
     register: jwt_groups
-    when: configureJWTEnabled and external_jwt_groups.changed
+    when: configureJWTEnabled and external_jwt_groups.changed and item.1.data is defined

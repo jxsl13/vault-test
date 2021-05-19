@@ -1,11 +1,17 @@
 - name: stage 09 - configure PKI
   hosts: localhost
-  gather_facts: false
+  gather_facts: true
   tasks:
 
   - name: is stage enabled
     set_fact:
       configurePKIEnabled: "{{ lookup('vars', 'configurePKI').enabled | default(True) }}"
+
+  - name: load cluster_keys.json var from file for ssh
+    include_vars:
+      file: "{{ lookup('vars','cluster_keys').replace('~', ansible_env.HOME) }}"
+      name: cluster_keys
+    when: configurePKIEnabled and (cluster_keys.root_token is undefined)
 
   - name: get environment & variables
     set_fact:
@@ -15,6 +21,12 @@
         VAULT_ADDR: "{{ lookup('vars', 'vault').address | default('http://' + vault.name + '.' + vault.namespace + '.svc.cluster.local:8200') }}"
         VAULT_TOKEN: "{{ cluster_keys.root_token }}"
     when: configurePKIEnabled
+
+  - name: get policy names
+    set_fact:
+      policies:
+        names: "{{ lookup('fileglob', policiesDir + '/*.hcl').split(',') | map('basename') | map('splitext') | map('first') | list }}"
+    when: configureSSHEnabled
 
   - name: enable secrets engine PKI
     hashivault_secret_engine:
@@ -43,3 +55,14 @@
       pem_bundle: "{{ new_pki_cert }}"
     environment: "{{ remote_env }}"
     when: configurePKIEnabled and (not 'certificate' in old_pki_cert.data) or (not new_pki_cert.startswith(old_pki_cert.data.certificate))
+
+
+  - name: "create {{ item }} role"
+    hashivault_pki_role:
+      name: "{{ item }}"
+
+      #https://terryhowe.github.io/ansible-modules-hashivault/modules/hashivault_pki_role_module.html#examples
+      config: "{{ lookup('templates', 'config/pki.yaml') }}"
+    environment: "{{ remote_env }}"
+    with_items: "{{ policies.names }}"
+    when: configurePKIEnabled and 'pki' in item.lower()

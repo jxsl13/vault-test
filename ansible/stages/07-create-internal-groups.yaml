@@ -4,8 +4,14 @@
 # to vault groups which have the corresponding acl policies attached to them.
 - name: stage 07 - create internal groups
   hosts: localhost
-  gather_facts: false
+  gather_facts: true
   tasks:
+
+  - name: load cluster_keys.json var from file for ssh
+    include_vars:
+      file: "{{ lookup('vars','cluster_keys').replace('~', ansible_env.HOME) }}"
+      name: cluster_keys
+    when: (configureJWTEnabled or configureOIDCEnabled) and (cluster_keys.root_token is undefined)
 
   - name: load keycloak credentials var from file
     include_vars:
@@ -28,63 +34,19 @@
   - name: get policy files and names
     set_fact:
       policies:
-        files: "{{ lookup('fileglob', policiesDir + '/*.hcl').split(',') }}"
         names: "{{ lookup('fileglob', policiesDir + '/*.hcl').split(',') | map('basename') | map('splitext') | map('first') | list }}"
     when: configureJWTEnabled or configureOIDCEnabled
 
 
-  # at most one of there three tasks should run !!!!!!!!
-  - name: create internal groups for JWT and OIDC
+  - name: create internal groups
     hashivault_identity_group:
-      name: "{{ item.0 }}"
+      name: "{{ item }}"
       group_type: "internal"
-      member_group_ids:
-        - "{{ item.1.data.id }}"
-        - "{{ item.2.data.id }}"
       policies:
-        - "{{ item.0 }}"
+        - "{{ item }}"
       metadata:
         responsibility: "{{ item.0 }} of k/v secrets"
-    environment: "{{ environment }}"
-    with_together:
-      - "{{ policies.names }}"
-      - "{{ external_jwt_groups.results }}"
-      - "{{ external_oidc_groups.results }}"
+    environment: "{{ remote_env }}"
+    with_items: "{{ policies.names }}"
     register: internal_groups
-    when: configureJWTEnabled and configureOIDCEnabled
-
-
-  - name: create internal groups for JWT
-    hashivault_identity_group:
-      name: "{{ item.0 }}"
-      group_type: "internal"
-      member_group_ids:
-        - "{{ item.1.data.id }}"
-      policies:
-        - "{{ item.0 }}"
-      metadata:
-        responsibility: "{{ item.0 }} of k/v secrets"
-    environment: "{{ environment }}"
-    with_together:
-      - "{{ policies.names }}"
-      - "{{ external_jwt_groups.results }}"
-    register: internal_groups
-    when: configureJWTEnabled and (not configureOIDCEnabled)
-
-
-  - name: create internal groups for OIDC
-    hashivault_identity_group:
-      name: "{{ item.0 }}"
-      group_type: "internal"
-      member_group_ids:
-        - "{{ item.1.data.id }}"
-      policies:
-        - "{{ item.0 }}"
-      metadata:
-        responsibility: "{{ item.0 }} of k/v secrets"
-    environment: "{{ environment }}"
-    with_together:
-      - "{{ policies.names }}"
-      - "{{ external_oidc_groups.results }}"
-    register: internal_groups
-    when: (not configureJWTEnabled) and configureOIDCEnabled
+    when: configureJWTEnabled or configureOIDCEnabled

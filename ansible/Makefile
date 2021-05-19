@@ -30,6 +30,7 @@ requirements:
 	# install kubernetes plugin
 	ansible-galaxy collection install kubernetes.core
 	ansible-galaxy install 'git+https://github.com/TerryHowe/ansible-modules-hashivault.git'
+	ansible-galaxy collection install community.general
 	@echo "========= ADD THESE ENVIRONMENT VARIABLES TO YOUR .bashrc =========="
 	export ANSIBLE_LIBRARY="${HOME}/.local/lib/python3.8/site-packages/ansible/modules"
 	export ANSIBLE_MODULE_UTILS="${HOME}/.local/lib/python3.8/site-packages/ansible/module_utils"

@@ -1,6 +1,6 @@
 - name: stage 02 - init vault
   hosts: localhost
-  gather_facts: false
+  gather_facts: true
   tasks:
 
   - name: is stage enabled

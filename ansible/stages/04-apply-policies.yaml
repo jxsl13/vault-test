@@ -1,12 +1,18 @@
 - name: stage 04 - apply policies
   hosts: localhost
-  gather_facts: false
+  gather_facts: true
   tasks:
 
   - name: get stage enabled
     set_fact:
       configureJWTEnabled: "{{ lookup('vars', 'configureJWT').enabled | default(True) }}"
       configureOIDCEnabled: "{{ lookup('vars', 'configureOIDC').enabled | default(True) }}"
+
+  - name: load cluster_keys.json var from file for ssh
+    include_vars:
+      file: "{{ lookup('vars','cluster_keys').replace('~', ansible_env.HOME) }}"
+      name: cluster_keys
+    when: (configureOIDCEnabled or configureJWTEnabled) and (cluster_keys.root_token is undefined)
 
   - name: get environment & variables
     set_fact:
