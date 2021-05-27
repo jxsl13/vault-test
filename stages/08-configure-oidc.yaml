@@ -23,6 +23,7 @@
     set_fact:
       kubeconfig: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
       vault: "{{ lookup('vars', 'vault') }}"
+      vault_redirect_uris: "{{ lookup('vars', 'vault').redirect_uris | default([]) }}"
       policiesDir: "{{ lookup('vars', 'policiesDir').strip('/').replace('~', ansible_env.HOME) | default('policies') }}"
 
       discovery_url: "{{ keycloak.url.rstrip('/') }}/auth/realms/{{ keycloak.realm }}"
@@ -73,9 +74,7 @@
       bound_claims: "{{ lookup('template', 'payload/bound_claims.yaml') | from_yaml }}"
       # workaround: only needed by the ansible vault plugin, not actually needed by vault.
       # https://github.com/TerryHowe/ansible-modules-hashivault/issues/336
-      allowed_redirect_uris:
-        - http://127.0.0.1:8200/ui/vault/auth/oidc/oidc/callback
-        - http://localhost:8200/ui/vault/auth/oidc/oidc/callback
+      allowed_redirect_uris: "{{ (lookup('template', 'config/default_redirect_uri.yaml') | from_yaml) +  vault_redirect_uris }}"
     environment: "{{ remote_env }}"
     with_items: "{{ policies.names }}"
     when: configureOIDCEnabled

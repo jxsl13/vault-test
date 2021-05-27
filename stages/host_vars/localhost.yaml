@@ -20,6 +20,7 @@ vault:
   create_namespace: true
   # a list of urls that the vault is accessible through https://vault.example.com
   # this is used for the keycloak and vault oidc configuraiton
+  # especially important for setting up keycloak to allow rediraction to these urls as well as vault's own config.
   redirect_uris: []
   keyShares: 1
   threshold: 1
