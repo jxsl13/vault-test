@@ -1,0 +1,112 @@
+- name: stage 06 - configure OIDC auth
+  hosts: all
+  gather_facts: true
+  tasks:
+
+  - name: is stage enabled
+    set_fact:
+      configureOIDCEnabled: "{{ lookup('vars', 'configureOIDC').enabled | default(True) }}"
+
+  - name: load cluster_keys.json var from file for ssh
+    include_vars:
+      file: "{{ lookup('vars','cluster_keys').replace('~', ansible_env.HOME) }}"
+      name: cluster_keys
+    when: configureOIDCEnabled and (cluster_keys.root_token is undefined)
+
+  - name: load keycloak credentials var from file
+    include_vars:
+      file: "{{ lookup('vars', 'keycloakCredentials') }}"
+      name: keycloak
+    when: configureOIDCEnabled
+
+  - name: get environment & variables
+    set_fact:
+      kubeconfig: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
+      vault: "{{ lookup('vars', 'vault') }}"
+      policiesDir: "{{ lookup('vars', 'policiesDir').strip('/').replace('~', ansible_env.HOME) | default('policies') }}"
+
+      discovery_url: "{{ keycloak.url.rstrip('/') }}/auth/realms/{{ keycloak.realm }}"
+      jwks_url: "{{ keycloak.url.rstrip('/') }}/auth/realms/{{ keycloak.realm }}/protocol/openid-connect/certs"
+
+      remote_env:
+        KUBECONFIG: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
+        VAULT_ADDR: "{{ lookup('vars', 'vault').address | default('http://' + vault.name + '.' + vault.namespace + '.svc.cluster.local:8200') }}"
+        VAULT_TOKEN: "{{ cluster_keys.root_token }}"
+    when: configureOIDCEnabled
+
+  - name: get policy files and names
+    set_fact:
+      policies:
+        files: "{{ lookup('fileglob', policiesDir + '/*.hcl').split(',') }}"
+        names: "{{ lookup('fileglob', policiesDir + '/*.hcl').split(',') | map('basename') | map('splitext') | map('first') | list }}"
+    when: configureOIDCEnabled
+
+  - name: enable OIDC auth
+    hashivault_auth_method:
+      method_type: oidc
+    environment: "{{ remote_env }}"
+    when: configureOIDCEnabled
+
+  - name: configure Keycloak OIDC
+    hashivault_oidc_auth_method_config:
+      mount_point: oidc
+      default_role: reader
+      bound_issuer: "{{ discovery_url }}"
+      oidc_discovery_url: "{{ discovery_url }}"
+      oidc_client_id: "{{ keycloak.client_id }}"
+      oidc_client_secret: "{{ keycloak.client_secret }}"
+    environment: "{{ remote_env }}"
+    when: configureOIDCEnabled
+
+  - name: "create {{ item }} OIDC role"
+    hashivault_oidc_auth_role:
+      name: "{{ item }}"
+      mount_point: oidc
+      # actual payload values below
+      user_claim: sub
+      bound_audiences:
+        - "{{ keycloak.client_id }}"
+      token_policies:
+        - "{{ item }}"
+      token_ttl: 3600
+      groups_claim: "/resource_access/{{ keycloak.client_id }}/roles"
+      bound_claims: "{{ lookup('template', 'payload/bound_claims.yaml') | from_yaml }}"
+      # workaround: only needed by the ansible vault plugin, not actually needed by vault.
+      # https://github.com/TerryHowe/ansible-modules-hashivault/issues/336
+      allowed_redirect_uris:
+        - http://127.0.0.1:8200/ui/vault/auth/oidc/oidc/callback
+        - http://all:8200/ui/vault/auth/oidc/oidc/callback
+    environment: "{{ remote_env }}"
+    with_items: "{{ policies.names }}"
+    when: configureOIDCEnabled
+
+
+  - name: create external OIDC groups
+    hashivault_identity_group:
+      name: "external_oidc_{{ item }}"
+      group_type: "external"
+      metadata:
+        responsibility: "{{ item }} of k/v secrets"
+    environment: "{{ remote_env }}"
+    with_items: "{{ policies.names }}"
+    register: external_oidc_groups
+
+  - name: "get OIDC auth list"
+    hashivault_auth_list:
+    register: auth_list
+    environment: "{{ remote_env }}"
+    when: configureOIDCEnabled
+
+  - name: create OIDC external group aliases
+    hashivault_identity_group_alias:
+      name: "{{ item.0 }}"
+      mount_accessor: "{{ auth_list.backends['oidc/'].accessor }}"
+      group_name: "{{ item.1.data.name }}"
+    environment: "{{ remote_env }}"
+    with_together:
+      - "{{ policies.names }}"
+      - "{{ external_oidc_groups.results }}"
+    register: oidc_groups
+    when: configureOIDCEnabled and external_oidc_groups.changed and item.1.data is defined
+
+

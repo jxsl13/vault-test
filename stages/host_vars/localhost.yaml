@@ -1,0 +1,60 @@
+
+# global variables
+# location of the kubeconfig file for the target cluster on the localhost machine
+
+# kubeconfig location on the control server/container
+kubeconfig: ~/.kube/config
+
+# will save the secrets and unseal keys in that file
+cluster_keys: "secrets/cluster-keys.json"
+
+# a directory with access policies
+policiesDir: policies
+
+# a secrets file containing keycloak client credentials
+keycloakCredentials: secrets/keycloak.yaml
+
+vault:
+  name: vault
+  namespace: vault
+  create_namespace: true
+  # leave this address as empty string "" in case you run the ansible control server as a container in a k8s cluster
+  address: "http://127.0.0.1:8200"
+  keyShares: 1
+  threshold: 1
+
+
+# stage specific variables
+
+deployVault:
+  enabled: true
+  vaultValuesLocation: values/vault-values.yaml
+  consulValuesLocation: values/consul-vault-values.yaml
+
+initVault:
+  enabled: true
+
+unsealVault:
+  enabled: true
+
+
+# application of policies
+
+# configuration of vault features
+configureJWT:
+  enabled: true
+
+configureOIDC:
+  enabled: true
+
+configureSecrets:
+  enabled: true
+
+configurePKI:
+  enabled: true
+  caBundleLocation: secrets/ca.pem
+
+configureSSH:
+  enabled: true
+  privateKeyLocation: secrets/ssh
+  publicKeyLocation: secrets/ssh.pub

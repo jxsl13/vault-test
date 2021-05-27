@@ -1,0 +1,13 @@
+version: '2.2'
+
+services:
+  vault-ansible:
+    container_name: ansible-vault-configuration
+    build: .
+    volumes: 
+      - "${HOME}/.kube:/root/.kube"
+      - "${HOME}/.kube:${HOME}/.kube"
+      - "./:/ansible"
+    restart: "no"
+    # allows the usage of localhost ports that expose the proxy servers.
+    network_mode: host

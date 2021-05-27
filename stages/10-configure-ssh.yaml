@@ -1,0 +1,89 @@
+
+- name: stage 10 - configure SSH
+  hosts: all
+
+  gather_facts: true
+  tasks:
+
+  - name: is stage enabled
+    set_fact:
+      configureSSHEnabled: "{{ lookup('vars', 'configureSSH').enabled | default(True) }}"
+
+    # do not put any conditions for this step
+  - name: load cluster_keys.json var from file for ssh
+    include_vars:
+      file: "{{ lookup('vars','cluster_keys').replace('~', ansible_env.HOME) }}"
+      name: cluster_keys
+    when: cluster_keys.root_token is undefined or cluster_keys.unseal_keys_b64 is undefined
+
+  - name: get environment & variables
+    set_fact:
+      privateKeyLocation: "{{ lookup('vars', 'configureSSH').privateKeyLocation.replace('~', ansible_env.HOME) | default('secrets/ssh')}}"
+      publicKeyLocation: "{{ lookup('vars', 'configureSSH').publicKeyLocation.replace('~', ansible_env.HOME) | default('secrets/ssh.pub')}}"
+      remote_env:
+        KUBECONFIG: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
+        VAULT_ADDR: "{{ lookup('vars', 'vault').address | default('http://' + vault.name + '.' + vault.namespace + '.svc.cluster.local:8200') }}"
+        VAULT_TOKEN: "{{ cluster_keys.root_token }}"
+    when: configureSSHEnabled
+
+  - name: get policy names
+    set_fact:
+      policies:
+        names: "{{ lookup('fileglob', policiesDir + '/*.hcl').split(',') | map('basename') | map('splitext') | map('first') | list }}"
+    when: configureSSHEnabled
+
+  - name: read public & private keys
+    set_fact:
+      privateKey: "{{ lookup('file', privateKeyLocation) }}"
+      publicKey: "{{ lookup('file', publicKeyLocation) }}"
+
+  - name: enable SSH secrets engine
+    hashivault_secret_engine:
+      name: ssh
+      backend: ssh
+    environment: "{{ remote_env }}"
+    register: ssh_engine
+    when: configureSSHEnabled
+
+
+  - name: fetch old_public_key
+    uri:
+      url: "{{ remote_env.VAULT_ADDR }}/v1/ssh/public_key"
+      return_content: yes
+    register: old_public_key_result
+    changed_when: False
+    failed_when: not (old_public_key_result.status // 100 == 2 or old_public_key_result.status // 100 == 4)
+
+  # in case there is no key already in the vault, the above command returns a http 400 status code
+  - name: import private & public key
+    hashivault_write:
+      mount_point: ssh
+      secret: config/ca
+      data:
+        private_key: "{{ privateKey }}"
+        public_key: "{{ publicKey }}"
+    environment: "{{ remote_env }}"
+    register: import_keys
+    failed_when: import_keys.rc != 0 and ('keys are already configured' not in import_keys.msg)
+    when: configureSSHEnabled and (old_public_key_result.status // 100 == 4)
+
+
+  - name: "create {{ item }} role"
+    hashivault_write:
+      mount_point: ssh
+      secret: "roles/{{ item }}"
+      data:
+        allow_user_certificates: true
+        allowed_users: "*"
+        allowed_extensions: "permit-pty,permit-port-forwarding"
+        default_extensions:
+          - permit-pty: ""
+          - permit-port-forwarding: ""
+        key_type: "ca"
+        #default_user: "ubuntu"
+        ttl: "30m0s"
+    environment: "{{ remote_env }}"
+    register: ssh_role_result
+    when: configureSSHEnabled and 'ssh' in item.lower()
+    with_items: "{{ policies.names }}"
+

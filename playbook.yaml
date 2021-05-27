@@ -1,0 +1,27 @@
+# 01-deploy-vault
+- name: stage 00 - load vars
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Include vars of host_vars/localhost.yaml
+    include_vars:
+      file: stages/host_vars/localhost.yaml
+
+- import_playbook: stages/01-deploy-vault.yaml
+- import_playbook: stages/02-init-vault.yaml
+- import_playbook: stages/03-unseal-vault.yaml
+- import_playbook: stages/04-apply-policies.yaml
+- import_playbook: stages/05-configure-jwt.yaml
+- import_playbook: stages/06-configure-oidc.yaml
+- import_playbook: stages/07-create-internal-groups.yaml
+
+- import_playbook: stages/08-configure-secrets.yaml
+- import_playbook: stages/09-configure-pki.yaml
+- import_playbook: stages/10-configure-ssh.yaml
+
+
+
+
+
+
+

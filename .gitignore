@@ -1,18 +1,7 @@
-keys/*
 
-!keys/.git-keep
-k8s/cluster-keys.json
-k8s/secrets/*.env
-k8s/**.json
-k8s/secrets/cluster-keys.json
-k8s/secrets/vault.env
-ansible/cluster-keys.json
-ansible/secrets/*.yaml
-ansible/secrets/*.json
-ansible/secrets/*.pem
-
-ansible/**/secrets/*.yaml
-ansible/**/secrets/*.json
-ansible/**/secrets/*.pem
-ansible/stages/secrets/ssh
-ansible/stages/secrets/ssh.pub
+stages/secrets/*.pem
+stages/secrets/*
+!stages/secrets/*.md
+!stages/secrets/*.example
+!stages/secrets/Makefile
+.env
