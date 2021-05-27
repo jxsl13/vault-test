@@ -2,7 +2,7 @@
 
 
 deploy:
-	docker-compose --env-file .env up --force-recreate
+	docker-compose up --force-recreate
 	docker-compose down
 
 build:
