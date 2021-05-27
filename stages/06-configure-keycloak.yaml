@@ -50,3 +50,6 @@
           protocol: openid-connect
           protocolMapper: oidc-usermodel-client-role-mapper
     register: client_state
+
+  - debug:
+      msg: "{{ client_state }}"
