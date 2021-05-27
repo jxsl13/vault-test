@@ -22,8 +22,8 @@ vault:
   # this is used for the keycloak and vault oidc configuraiton
   # especially important for setting up keycloak to allow rediraction to these urls as well as vault's own config.
   redirect_uris: []
-  keyShares: 1
-  threshold: 1
+  keyShares: 3
+  threshold: 2
 
 
 # stage specific variables

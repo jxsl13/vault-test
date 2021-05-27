@@ -17,7 +17,7 @@
     set_fact:
       kubeconfig: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
       vault: "{{ lookup('vars', 'vault') }}"
-      unseal_keys_b64: "{{ ' '.join(cluster_keys.unseal_keys_b64) }}"
+      unseal_keys_b64: "{{ cluster_keys.unseal_keys_b64 }}"
     when: unsealVaultEnabled
 
   - name: get vault status
@@ -34,14 +34,17 @@
 
   # unseal vault in case it is sealed, we expect if vault-0 is sealed
   # that every other vault instance is also sealed.
-  - name: "unseal vault-{{ item }}"
+  - name: "unseal {{ vault.name }}-{{ item[0] }}"
     kubernetes.core.k8s_exec:
       namespace: "{{ vault.namespace }}"
-      pod: "{{ vault.name }}-{{ item }}"
-      command: "vault operator unseal {{ unseal_keys_b64 }}"
+      pod: "{{ vault.name }}-{{ item[0] }}"
+      command: "vault operator unseal {{ item[1] }}"
     environment:
       KUBECONFIG: "{{ kubeconfig }}"
-    with_items: [0, 1, 2]
+    no_log: true
+    with_nested:
+      - [0, 1, 2]
+      - "{{ unseal_keys_b64 }}"
     when: unsealVaultEnabled and cluster.sealed
 
   # unsealed vault should also be ready, in any case.
