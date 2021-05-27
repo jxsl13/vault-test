@@ -1,0 +1,52 @@
+- name: stage 05 - configure JWT auth
+  hosts: all
+  gather_facts: true
+  tasks:
+
+
+  - name: load keycloak credentials var from file
+    include_vars:
+      file: "{{ lookup('vars', 'keycloakCredentials') }}"
+      name: keycloak
+
+  - name: get environment & variables
+    set_fact:
+      policiesDir: "{{ lookup('vars', 'policiesDir').strip('/').replace('~', ansible_env.HOME) | default('policies') }}"
+      vault_redirect_uris: "{{ lookup('vars', 'vault').redirect_uris | default([]) }}"
+
+      auth_url: "{{ keycloak.url.rstrip('/') }}/auth"
+      admin_realm: "{{ keycloak.admin_realm | default('master') }}"
+      admin_username: "{{ keycloak.admin_username }}"
+      admin_password: "{{ keycloak.admin_password }}"
+
+  - name: get policy files and names
+    set_fact:
+      policies:
+        files: "{{ lookup('fileglob', policiesDir + '/*.hcl').split(',') }}"
+        names: "{{ lookup('fileglob', policiesDir + '/*.hcl').split(',') | map('basename') | map('splitext') | map('first') | list }}"
+
+  - name: "create {{ keycloak.client_id }}"
+    community.general.keycloak_client:
+      auth_keycloak_url: "{{ auth_url }}"
+      auth_username: "{{ admin_username }}"
+      auth_password: "{{ admin_password }}"
+      auth_realm: "{{ admin_realm }}"
+      realm: "{{ keycloak.realm }}"
+      client_id: "{{ keycloak.client_id }}"
+      secret: "{{ keycloak.client_secret }}"
+      state: present
+      redirect_uris: "{{ (lookup('template', 'config/default_redirect_uri.yaml') | from_yaml) +  vault_redirect_uris }}"
+      default_roles: "{{ policies.names }}"
+      protocol_mappers:
+        - config:
+            access.token.claim: True
+            claim.name: "resource_access.${client_id}.roles"
+            id.token.claim: True
+            jsonType.label: String
+            multivalued: True
+            userinfo.token.claim: False
+            usermodel.clientRoleMapping.clientId: "{{ keycloak.client_id }}"
+          name: client roles
+          protocol: openid-connect
+          protocolMapper: oidc-usermodel-client-role-mapper
+    register: client_state

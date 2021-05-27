@@ -8,16 +8,24 @@
       file: stages/host_vars/localhost.yaml
 
 - import_playbook: stages/01-deploy-vault.yaml
+
+- import_playbook: stages/00a-kubectl-port-forward.yaml
+
 - import_playbook: stages/02-init-vault.yaml
 - import_playbook: stages/03-unseal-vault.yaml
-- import_playbook: stages/04-apply-policies.yaml
-- import_playbook: stages/05-configure-jwt.yaml
-- import_playbook: stages/06-configure-oidc.yaml
-- import_playbook: stages/07-create-internal-groups.yaml
 
-- import_playbook: stages/08-configure-secrets.yaml
-- import_playbook: stages/09-configure-pki.yaml
-- import_playbook: stages/10-configure-ssh.yaml
+- import_playbook: stages/04-apply-policies.yaml
+- import_playbook: stages/05-configure-keycloak.yaml
+
+- import_playbook: stages/06-configure-jwt.yaml
+- import_playbook: stages/07-configure-oidc.yaml
+- import_playbook: stages/08-create-internal-groups.yaml
+
+- import_playbook: stages/09-configure-secrets.yaml
+- import_playbook: stages/10-configure-pki.yaml
+- import_playbook: stages/11-configure-ssh.yaml
+
+- import_playbook: stages/00b-stop-port-forward.yaml
 
 
 

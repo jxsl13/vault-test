@@ -1,0 +1,15 @@
+- name: stage 00b - stop port-forward
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: set pid file path
+    set_fact:
+      pid_file: /tmp/kubectl_port_forward_pid
+
+  - name: tear down the tunnel to vault
+    shell: |
+      kill "$(cat {{ pid_file | quote }})" || true
+      rm -f {{ pid_file | quote }}
+    args:
+      removes: "{{ pid_file }}"
+    changed_when: false

@@ -24,7 +24,7 @@ key_usage:
 locality: []
 max_ttl: ""
 no_store: no
-not_before_duration: "30s"
+#not_before_duration: "30s"
 organization: []
 ou: []
 policy_identifiers: []

@@ -1,0 +1,16 @@
+- name: stage 00a - kubectl port-forward
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: set pid file path
+    set_fact:
+      pid_file: /tmp/kubectl_port_forward_pid
+      vault: "{{ lookup('vars', 'vault') }}"
+
+  - name: set up a tunnel to vault
+    shell: |
+      nohup kubectl port-forward "{{ vault.name + '-0' | quote }}" 8200:8200 --namespace {{ vault.namespace | quote }} </dev/null >/dev/null 2>&1 &
+      echo "$!" >{{ pid_file|quote }}
+    args:
+      creates: "{{ pid_file }}"
+    changed_when: false
