@@ -50,11 +50,12 @@ RUN set -eux; \
     gpgconf --kill gpg-agent && \
     rm -rf /root/.gnupg
 
-
+# install ansible dependencies: kubernetes, hashicorp vault, community
 RUN ansible-galaxy collection install kubernetes.core && \
 	ansible-galaxy install 'git+https://github.com/TerryHowe/ansible-modules-hashivault.git' && \
 	ansible-galaxy collection install community.general
 
+# set necessary environment variables
 ENV ANSIBLE_LIBRARY "${HOME}/.local/lib/python3.9/site-packages/ansible/modules"
 ENV ANSIBLE_MODULE_UTILS "${HOME}/.local/lib/python3.9/site-packages/ansible/module_utils"
 
