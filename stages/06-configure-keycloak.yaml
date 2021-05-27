@@ -25,7 +25,7 @@
         files: "{{ lookup('fileglob', policiesDir + '/*.hcl').split(',') }}"
         names: "{{ lookup('fileglob', policiesDir + '/*.hcl').split(',') | map('basename') | map('splitext') | map('first') | list }}"
 
-  - name: "create {{ keycloak.client_id }}"
+  - name: "create Keycloak client {{ keycloak.client_id }}"
     community.general.keycloak_client:
       auth_keycloak_url: "{{ auth_url }}"
       auth_username: "{{ admin_username }}"
@@ -50,6 +50,3 @@
           protocol: openid-connect
           protocolMapper: oidc-usermodel-client-role-mapper
     register: client_state
-
-  - debug:
-      msg: "{{ client_state }}"

@@ -9,5 +9,3 @@ services:
       - "${HOME}/.kube:${HOME}/.kube"
       - "./:/ansible"
     restart: "no"
-    # allows the usage of localhost ports that expose the proxy servers.
-    network_mode: host

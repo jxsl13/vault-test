@@ -17,7 +17,7 @@
     hashivault_status:
     register: vault_status
     environment:
-      VAULT_ADDR: "{{ vault.address | default('http://' + vault.name + '.' + vault.namespace + '.svc.cluster.local:8200') }}"
+      VAULT_ADDR: "{{ vault.address | default('http://127.0.0.1:8200') }}"
     when: initVaultEnabled
 
   - name: set cluster status variable
