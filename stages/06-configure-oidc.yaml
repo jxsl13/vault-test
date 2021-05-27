@@ -75,7 +75,7 @@
       # https://github.com/TerryHowe/ansible-modules-hashivault/issues/336
       allowed_redirect_uris:
         - http://127.0.0.1:8200/ui/vault/auth/oidc/oidc/callback
-        - http://all:8200/ui/vault/auth/oidc/oidc/callback
+        - http://localhost:8200/ui/vault/auth/oidc/oidc/callback
     environment: "{{ remote_env }}"
     with_items: "{{ policies.names }}"
     when: configureOIDCEnabled
