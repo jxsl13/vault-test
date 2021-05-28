@@ -51,7 +51,7 @@
   - name: configure Keycloak OIDC
     hashivault_oidc_auth_method_config:
       mount_point: oidc
-      default_role: reader
+      default_role: default
       bound_issuer: "{{ discovery_url }}"
       oidc_discovery_url: "{{ discovery_url }}"
       oidc_client_id: "{{ keycloak.client_id }}"

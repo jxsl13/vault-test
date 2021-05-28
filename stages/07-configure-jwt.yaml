@@ -50,7 +50,7 @@
   - name: configure Keycloak JWT
     hashivault_oidc_auth_method_config:
       mount_point: jwt
-      default_role: reader
+      default_role: default
       bound_issuer: "{{ discovery_url }}"
       jwks_url: "{{ jwks_url }}"
     environment: "{{ remote_env }}"
