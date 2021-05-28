@@ -60,8 +60,8 @@
 
   - name: "create {{ item }} role"
     hashivault_pki_role:
+      state: present
       name: "{{ item }}"
-
       #https://terryhowe.github.io/ansible-modules-hashivault/modules/hashivault_pki_role_module.html#examples
       config: "{{ lookup('template', 'config/pki.yaml') | from_yaml }}"
     environment: "{{ remote_env }}"

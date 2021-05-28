@@ -1,4 +1,4 @@
-- name: stage 02 - init vault
+- name: stage 03 - init vault
   hosts: all
   gather_facts: true
   tasks:
@@ -10,7 +10,7 @@
     set_fact:
       kubeconfig: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
       vault: "{{ lookup('vars', 'vault') }}"
-      clusterKeysSaveDestination: "{{ lookup('vars', 'cluster_keys').replace('~', ansible_env.HOME) | default( '/'.join((playbook_dir, 'secrets/cluster_keys.json')) ) }}"
+      clusterKeysSaveDestination: "{{ lookup('vars', 'cluster_keys_location').replace('~', ansible_env.HOME) | default('secrets/cluster_keys.json') }}"
     when: initVaultEnabled
 
   - name: get vault status
@@ -22,7 +22,7 @@
 
   - name: set cluster status variable
     set_fact:
-      cluster: "{{ vault_status.status }}"
+      cluster_status: "{{ vault_status.status }}"
     when: initVaultEnabled
 
   - name: init vault
@@ -32,17 +32,29 @@
       pod: "{{ vault.name }}-0"
       command: "vault operator init -key-shares={{ vault.keyShares }} -key-threshold={{ vault.threshold }} -format=json"
     register: cluster_keys_result
-    when: initVaultEnabled and (not cluster.initialized)
+    when: initVaultEnabled and (not cluster_status.initialized)
 
-  # create variable from stdout JSON structure
+  - name: get new vault status
+    hashivault_status:
+    register: new_vault_status
+    environment:
+      VAULT_ADDR: "{{ vault.address | default('http://127.0.0.1:8200') }}"
+    when: initVaultEnabled
+
+  - name: set new_cluster_status status variable
+    set_fact:
+      new_cluster_status: "{{ new_vault_status.status }}"
+    when: initVaultEnabled
+
+  # create variable from stdout JSON structure when cluster status changed
   - name: set cluster keys
     set_fact:
-      cluster_keys_fact: "{{ cluster_keys_result.stdout | from_json }}"
-    when: initVaultEnabled and (not cluster.initialized)
+      cluster_keys: "{{ cluster_keys_result.stdout | from_json }}"
+    when: initVaultEnabled and ((not cluster_status.initialized) and new_cluster_status.initialized)
 
   # save as JSON at specified detsination
   - name: save cluster_keys.json
     copy:
-      content: "{{ cluster_keys_fact | to_nice_json }}"
+      content: "{{ cluster_keys | to_nice_json }}"
       dest: "{{ clusterKeysSaveDestination }}"
-    when: initVaultEnabled and (not cluster.initialized)
+    when: initVaultEnabled and ((not cluster_status.initialized) and new_cluster_status.initialized)
