@@ -39,7 +39,34 @@
       default_roles: "{{ policies.names }}"
       protocol_mappers:
         - config:
-            access.token.claim: True
+            access.token.claim: False
+            claim.name: "resource_access.${client_id}.roles"
+            id.token.claim: True
+            jsonType.label: String
+            multivalued: True
+            userinfo.token.claim: False
+            usermodel.clientRoleMapping.clientId: "{{ keycloak.client_id }}"
+          name: client roles
+          protocol: openid-connect
+          protocolMapper: oidc-usermodel-client-role-mapper
+    register: client_state
+
+  - name: "remove default roles (keeps created roles)"
+    community.general.keycloak_client:
+      auth_keycloak_url: "{{ auth_url }}"
+      auth_username: "{{ admin_username }}"
+      auth_password: "{{ admin_password }}"
+      auth_realm: "{{ admin_realm }}"
+      realm: "{{ keycloak.realm }}"
+      client_id: "{{ keycloak.client_id }}"
+      secret: "{{ keycloak.client_secret }}"
+      state: present
+      redirect_uris: "{{ (lookup('template', 'config/default_redirect_uri.yaml') | from_yaml) +  vault_redirect_uris }}"
+      default_roles:
+        - default
+      protocol_mappers:
+        - config:
+            access.token.claim: False
             claim.name: "resource_access.${client_id}.roles"
             id.token.claim: True
             jsonType.label: String
