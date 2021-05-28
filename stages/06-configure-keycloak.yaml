@@ -1,4 +1,4 @@
-- name: stage 05 - configure JWT auth
+- name: stage 06 - configure JWT auth
   hosts: all
   gather_facts: true
   tasks:

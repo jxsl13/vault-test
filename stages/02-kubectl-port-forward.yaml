@@ -1,4 +1,4 @@
-- name: stage 00a - kubectl port-forward
+- name: stage 02 - kubectl port-forward
   hosts: all
   gather_facts: false
   tasks:

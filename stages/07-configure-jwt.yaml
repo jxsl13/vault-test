@@ -1,4 +1,4 @@
-- name: stage 05 - configure JWT auth
+- name: stage 07 - configure JWT auth
   hosts: all
   gather_facts: true
   tasks:
@@ -9,7 +9,7 @@
 
   - name: load cluster_keys.json var from file for ssh
     include_vars:
-      file: "{{ lookup('vars','cluster_keys').replace('~', ansible_env.HOME) }}"
+      file: "{{ lookup('vars','cluster_keys_location').replace('~', ansible_env.HOME) }}"
       name: cluster_keys
     when: configureJWTEnabled and (cluster_keys.root_token is undefined)
 

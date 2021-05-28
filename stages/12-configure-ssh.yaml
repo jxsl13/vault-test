@@ -1,5 +1,5 @@
 
-- name: stage 10 - configure SSH
+- name: stage 12 - configure SSH
   hosts: all
 
   gather_facts: true
@@ -12,7 +12,7 @@
     # do not put any conditions for this step
   - name: load cluster_keys.json var from file for ssh
     include_vars:
-      file: "{{ lookup('vars','cluster_keys').replace('~', ansible_env.HOME) }}"
+      file: "{{ lookup('vars','cluster_keys_location').replace('~', ansible_env.HOME) }}"
       name: cluster_keys
     when: cluster_keys.root_token is undefined or cluster_keys.unseal_keys_b64 is undefined
 

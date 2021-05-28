@@ -6,7 +6,7 @@
 kubeconfig: ~/.kube/config
 
 # will save the secrets and unseal keys in that file
-cluster_keys: "secrets/cluster-keys.json"
+cluster_keys_location: "secrets/cluster-keys.json"
 
 # a directory with access policies
 policiesDir: policies

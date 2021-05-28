@@ -2,14 +2,14 @@
 # this stage is not possible to execute unless you put stages 5 through 7 in a single file.
 # from my tetsing it seem sthat internal groups are not necessarily needed in order to enforce mapping of client id role
 # to vault groups which have the corresponding acl policies attached to them.
-- name: stage 07 - create internal groups
+- name: stage 09 - create internal groups
   hosts: all
   gather_facts: true
   tasks:
 
   - name: load cluster_keys.json var from file for ssh
     include_vars:
-      file: "{{ lookup('vars','cluster_keys').replace('~', ansible_env.HOME) }}"
+      file: "{{ lookup('vars','cluster_keys_location').replace('~', ansible_env.HOME) }}"
       name: cluster_keys
     when: (configureJWTEnabled or configureOIDCEnabled) and (cluster_keys.root_token is undefined)
 
