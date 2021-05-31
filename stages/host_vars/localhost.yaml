@@ -18,6 +18,8 @@ vault:
   name: vault
   namespace: vault
   create_namespace: true
+  # you may use this in case your vault is exposed to the internet and you want to configure it through that address
+  # address: https://vault.example.com
   # a list of urls that the vault is accessible through https://vault.example.com
   # this is used for the keycloak and vault oidc configuraiton
   # especially important for setting up keycloak to allow rediraction to these urls as well as vault's own config.

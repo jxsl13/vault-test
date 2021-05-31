@@ -44,15 +44,16 @@ Open the file `vi stages/host_vars/localhost.yaml` and point the `kubeconfig` to
 
 ### Deploy Vault
 Execute `make` for the first time. This will deploy the vault in the vault namespace
-You will encounter a long error stating that it cannot execute the next step, as you do not have any port forwarding setup, nor does Ansible know the VAULT_ADDR of your vault.
 
 The ansible script automatically creates a kubectl port-forward which is then used to connect to the vault-0 container in order to execute the configuration steps.
 
-In case the `stage 03 - init-vault` step fails, you may use `make port-forward` in order to manually create e tunnel to the container.
-And then you can retry running the script again via `make`
+You may alter the script and remove the port forwards and add a different address in the `localhost.yaml` file.
 
 
 ## User permissions
+
+The keycloak is configured in the way that a user by default gets the default role assigned in the keycloak as well as in vault.
+This role allows for some basic functionalities on a per user scope.
 
 Now you can give your user the client role that maps to the corresponding access policy in vault.
 E.g. the manager role has the manager policy and can edit secrets.
