@@ -70,6 +70,7 @@
 
   - name: "create {{ item }} role"
     hashivault_write:
+      update: True
       mount_point: ssh
       secret: "roles/{{ item }}"
       data:
