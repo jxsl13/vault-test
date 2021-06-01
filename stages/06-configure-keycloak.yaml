@@ -51,12 +51,12 @@
           protocolMapper: oidc-usermodel-client-role-mapper
         - config:
             access.token.claim: true
-            id.token.claim": true
+            id.token.claim: true
             included.client.audience: "{{ keycloak.client_id }}"
           consentRequired: false
           name: audience
           protocol: openid-connect
-          protocolMapper": oidc-audience-mapper
+          protocolMapper: oidc-audience-mapper
     register: client_state
 
   - debug:
@@ -88,10 +88,10 @@
           protocolMapper: oidc-usermodel-client-role-mapper
         - config:
             access.token.claim: true
-            id.token.claim": true
+            id.token.claim: true
             included.client.audience: "{{ keycloak.client_id }}"
           consentRequired: false
           name: audience
           protocol: openid-connect
-          protocolMapper": oidc-audience-mapper
+          protocolMapper: oidc-audience-mapper
     register: client_state
