@@ -5,3 +5,4 @@ stages/secrets/*
 !stages/secrets/*.example
 !stages/secrets/Makefile
 .env
+debug/*
