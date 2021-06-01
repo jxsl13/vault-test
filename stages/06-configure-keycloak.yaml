@@ -34,6 +34,7 @@
       realm: "{{ keycloak.realm }}"
       client_id: "{{ keycloak.client_id }}"
       secret: "{{ keycloak.client_secret }}"
+      direct_access_grants_enabled: yes
       state: present
       redirect_uris: "{{ (lookup('template', 'config/default_redirect_uri.yaml') | from_yaml) +  vault_redirect_uris }}"
       default_roles: "{{ policies.names }}"
@@ -70,6 +71,7 @@
       realm: "{{ keycloak.realm }}"
       client_id: "{{ keycloak.client_id }}"
       secret: "{{ keycloak.client_secret }}"
+      direct_access_grants_enabled: yes
       state: present
       redirect_uris: "{{ (lookup('template', 'config/default_redirect_uri.yaml') | from_yaml) +  vault_redirect_uris }}"
       default_roles:
