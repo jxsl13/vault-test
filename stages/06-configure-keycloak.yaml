@@ -40,12 +40,12 @@
       default_roles: "{{ policies.names }}"
       protocol_mappers:
         - config:
-            access.token.claim: True
+            access.token.claim: true
             claim.name: "resource_access.${client_id}.roles"
-            id.token.claim: True
+            id.token.claim: true
             jsonType.label: String
-            multivalued: True
-            userinfo.token.claim: False
+            multivalued: true
+            userinfo.token.claim: false
             usermodel.clientRoleMapping.clientId: "{{ keycloak.client_id }}"
           name: client roles
           protocol: openid-connect
@@ -60,8 +60,6 @@
           protocolMapper: oidc-audience-mapper
     register: client_state
 
-  - debug:
-      msg: "{{ client_state }}"
   - name: "remove default roles (keeps created roles)"
     community.general.keycloak_client:
       auth_keycloak_url: "{{ auth_url }}"
@@ -78,12 +76,12 @@
         - default
       protocol_mappers:
         - config:
-            access.token.claim: True
+            access.token.claim: true
             claim.name: "resource_access.${client_id}.roles"
-            id.token.claim: True
+            id.token.claim: true
             jsonType.label: String
-            multivalued: True
-            userinfo.token.claim: True
+            multivalued: true
+            userinfo.token.claim: true
             usermodel.clientRoleMapping.clientId: "{{ keycloak.client_id }}"
           name: client roles
           protocol: openid-connect
