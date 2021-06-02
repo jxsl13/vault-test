@@ -54,12 +54,15 @@ configureOIDC:
 
 configureSecrets:
   enabled: true
+  mountPath: secrets
 
 configurePKI:
   enabled: true
+  mountPath: pki
   caBundleLocation: secrets/ca.pem
 
 configureSSH:
   enabled: true
+  mountPath: ssh
   privateKeyLocation: secrets/ssh
   publicKeyLocation: secrets/ssh.pub

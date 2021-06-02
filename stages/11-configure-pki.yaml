@@ -16,6 +16,7 @@
 
   - name: get environment & variables
     set_fact:
+      mountPath: "{{ lookup('vars', 'configurePKI').mountPath.strip('/') | default('pki') }}"
       caBundleLocation: "{{ lookup('vars', 'configurePKI').caBundleLocation.replace('~', ansible_env.HOME) | default('secrets/ca.pem') }}"
       remote_env:
         KUBECONFIG: "{{ lookup('vars', 'kubeconfig').replace('~', ansible_env.HOME) }}"
@@ -31,7 +32,7 @@
 
   - name: enable secrets engine PKI
     hashivault_secret_engine:
-      name: pki
+      name: "{{ mountPath }}"
       backend: pki
     environment: "{{ remote_env }}"
     register: pki_engine
